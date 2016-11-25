@@ -1,5 +1,5 @@
 FORMAT: 1A
-HOST: https://token-identity-service.herokuapp.com/
+HOST: https://identity.tokenbrowser.com/
 
 # Identity Service
 
@@ -13,37 +13,86 @@ In the long run, we would like to migrate this service to a decentalized identit
 A User object has the following attributes:
 
 + version - format of the user's profile data
-+ uuid - unique ID
 + username - with format `^[a-z0-9_]{1,60}$`
-+ created_at - An ISO8601 timestamp
-+ updated_at - An ISO8601 timestamp
-+ url - resource url
-+ key_type
-+ public_key
-+ payload - user defined, users can store any custom parameters here
++ owner_address - ethereum address associated with the private key the user is using for identification
++ profile - user specified profile data
 
 + Parameters
     + username: 1 (required, string) - username of the user
 
-### Create a user [POST]
+### Register a user [POST]
+
+Used to register a new username and associate it with an ethereum address.
+The address is extracted from the signature.
+
++ Request (application/json)
+
+        {
+            "payload": {
+                "profile": {"name": "Mr Tester"},
+                "timestamp": 1480077346.786651,
+                "username": "testuser"
+            },
+            "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
+        }
+
++ Response 200 (application/json)
+
+        {
+            "version": "1",
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "username": "testuser",
+            "profile": {
+                "name": "Mr Tester"
+            }
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "invalid_signature",
+                    "message": "Invalid Signature"
+                }
+            ]
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "username_taken",
+                    "message": "Requested username is already taken"
+                }
+            ]
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "missing_arguments",
+                    "message": "Missing arguments"
+                }
+            ]
+        }
+
 ### Get a Users info [GET]
 
 + Response 200 (application/json)
 
         {
-            "version": "v1",
-            "uuid": "123e4567-e89b-12d3-a456-426655440000",
+            "version": "1",
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
-            "created_at": "2014-11-11T08:40:51.620Z",
-            "updated_at": "2014-11-11T08:40:51.620Z",
-            "url": "/users/123e4567-e89b-12d3-a456-426655440000",
-            "key_type": "ethereum",
-            "public_key": "0xd0A01BFA253c29BD5B4D591c8d956Ad0361554bA",
-            "payload": {
-                "a": "b"
+            "profile": {
+                "name": "Mr Tester"
             }
         }
-        
+
 + Response 404 (application/json)
 
         {
@@ -55,13 +104,69 @@ A User object has the following attributes:
         }
 
 ### Update a user [PUT]
-### Update a user's key [PUT]
 
+Allows the user to update their profile
+
++ Request (application/json)
+
+        {
+            "payload": {
+                "profile": {
+                    "name": "Mr Tester",
+                    "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
+                },
+                "timestamp": 1480078657.293965,
+            },
+            "signature": "0x3c8a8d1ce2fb175ded6489e0d811654871f2dc533d6726c5fa3e34c5e85c4458367c7cf8d1810b54ff44cfd2e09bbf0500920633765de886dc51cbf5bc09a89d00"
+        }
+
++ Response 200 (application/json)
+
+        {
+            "version": "1",
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "username": "testuser",
+            "profile": {
+                "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
+                "name": "Mr Tester"
+            }
+        }
+
++ Response 404 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "not_found",
+                    "message": "Not found"
+                }
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "invalid_signature",
+                    "message": "Invalid Signature"
+                }
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "missing_arguments",
+                    "message": "Missing arguments"
+                }
+            ]
+        }
 
 ## Todo
 
 * complete error handling docs with table of return codes, error types etc
-* describe how signing of payload and timestamps work when updating user (can copy some of this from Tristan's [original version](https://github.com/tokenbrowser/id-service/commit/ffe290a3423711c943ad52e21369a63ced9cf64e)) 
+* describe how signing of payload and timestamps work when updating user (can copy some of this from Tristan's [original version](https://github.com/tokenbrowser/id-service/commit/ffe290a3423711c943ad52e21369a63ced9cf64e))
 
 ## Errors
 
