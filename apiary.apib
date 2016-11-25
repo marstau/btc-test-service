@@ -7,6 +7,49 @@ This service stores user identities and information associated with those users.
 
 In the long run, we would like to migrate this service to a decentalized identity service on the blockchain (using something like Blockstack, uPort, or others). We are still researching the best options.
 
+# Generating signatures
+
+When registering a new user and updating profile information, the user must sign the request `payload` to prove ownership of the associated ethereum address.
+
+Signatures are generated in the same way as Ethereum transaction signatures are.
+
+The source data for the signature is the json representation of the `payload` with all keys sorted by name, and all non-value whitespace removed.
+
+e.g.
+
+    {
+        "timestamp": 1480078657.293965,
+        "profile": {
+            "name": "Mr Tester",
+            "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
+        }
+    }
+
+becomes
+
+    {"profile":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
+
+This data is then SHA3 Hashed (Keccak-256) and signed with the owners private key using recoverable ECDSA. Finally the resulting signature is serialised and converted to a hex string.
+*TODO*: find/write more detailed documentation for these things.
+
+# Errors
+
+All error messages will return both machine (`id`) and human readable (`message`) error message. All errors, except validation_error, return only one error. Some errors will also have an optional link to the documentation (url).
+
+validation_error with status code 400 is returned when the validation of the resource fails on POST or PUT requests. Response contains errors field with a list of errors.
+
+Important: Different error types (id) can be added and removed over time so you should make sure your application accepts new ones as well.
+
++ Example 404 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "not_found",
+                    "message": "Not found"
+                }
+        }
+
 
 ## User [/users/{username}]
 
@@ -161,27 +204,4 @@ Allows the user to update their profile
                     "message": "Missing arguments"
                 }
             ]
-        }
-
-## Todo
-
-* complete error handling docs with table of return codes, error types etc
-* describe how signing of payload and timestamps work when updating user (can copy some of this from Tristan's [original version](https://github.com/tokenbrowser/id-service/commit/ffe290a3423711c943ad52e21369a63ced9cf64e))
-
-## Errors
-
-All error messages will return both machine (`id`) and human readable (`message`) error message. All errors, except validation_error, return only one error. Some errors will also have an optional link to the documentation (url).
-
-validation_error with status code 400 is returned when the validation of the resource fails on POST or PUT requests. Response contains errors field with a list of errors.
-
-Important: Different error types (id) can be added and removed over time so you should make sure your application accepts new ones as well.
-
-+ Example 404 (application/json)
-
-        {
-            "errors": [
-                {
-                    "id": "not_found",
-                    "message": "Not found"
-                }
         }
