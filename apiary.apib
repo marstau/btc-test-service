@@ -50,8 +50,7 @@ Important: Different error types (id) can be added and removed over time so you 
                 }
         }
 
-
-## User [/users/{username}]
+# User Object
 
 A User object has the following attributes:
 
@@ -60,8 +59,7 @@ A User object has the following attributes:
 + owner_address - ethereum address associated with the private key the user is using for identification
 + profile - user specified profile data
 
-+ Parameters
-    + username: 1 (required, string) - username of the user
+## User Registration [/v1/users]
 
 ### Register a user [POST]
 
@@ -122,6 +120,11 @@ The address is extracted from the signature.
                 }
             ]
         }
+
+## User Retreival/Update [/v1/users/{username}]
+
++ Parameters
+    + username: 1 (required, string) - username of the user
 
 ### Get a Users info [GET]
 
