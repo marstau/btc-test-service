@@ -1,0 +1,7 @@
+#PYTHON3
+tornado==4.4.2
+asyncpg==0.7.0
+rlp==0.4.6 # TODO: remove this when pyethereum fixes https://github.com/ethereum/pyethereum/issues/421
+ethereum==1.6.0
+names==0.3.0
+regex
