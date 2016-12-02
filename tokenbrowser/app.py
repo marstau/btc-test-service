@@ -66,8 +66,8 @@ class DebuggingApplication(tornado.web.Application):
 async def create_application(config, application_class=tornado.web.Application):
 
     urls = [
-        (r"^/user/?$", handlers.UserCreationHandler),
-        (r"^/user/(?P<username>[^/]+)/?$", handlers.UserHandler),
+        (r"^/v1/user/?$", handlers.UserCreationHandler),
+        (r"^/v1/user/(?P<username>[^/]+)/?$", handlers.UserHandler),
     ]
 
     application = application_class(urls, debug=config['general'].getboolean('debug'))

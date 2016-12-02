@@ -72,7 +72,7 @@ class AsyncHandlerTest(AsyncHTTPTestCase):
         # default raise_error to false
         if 'raise_error' not in kwargs:
             kwargs['raise_error'] = False
-        return self.http_client.fetch(self.get_url(req), self.stop, **kwargs)
+        return self.http_client.fetch(self.get_url("/v1{}".format(req)), self.stop, **kwargs)
 
 
 def async_test(func=None, timeout=None):

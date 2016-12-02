@@ -76,7 +76,7 @@ class UserCreationHandler(BaseHandler):
 
             username = payload['username']
 
-            if not regex.match('^[a-z0-9_]{1,60}$', username):
+            if not regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
             # check username doesn't already exist
@@ -89,7 +89,7 @@ class UserCreationHandler(BaseHandler):
 
             # generate temporary username
             while True:
-                username = ''.join(namegenerator.get_full_name().lower().split())
+                username = ''.join(namegenerator.get_full_name().split())
                 async with self.db:
                     row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
                 if row is None:
@@ -113,7 +113,7 @@ class UserHandler(BaseHandler):
             async with self.db:
                 row = await self.db.fetchrow("SELECT * FROM users WHERE eth_address = $1", username)
 
-        elif not regex.match('^[a-z][a-z0-9_]{1,60}$', username):
+        elif not regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
         else:

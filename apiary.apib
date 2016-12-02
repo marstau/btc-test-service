@@ -17,14 +17,16 @@ The source data for the signature is the json representation of the `payload` wi
 
 e.g.
 
-    {
+{
+    "payload": {
         "timestamp": 1480078657.293965,
         "profile": {
             "name": "Mr Tester",
             "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
         }
-    }
-
+    },
+    "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
+}
 becomes
 
     {"profile":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
@@ -54,10 +56,9 @@ Important: Different error types (id) can be added and removed over time so you 
 
 A User object has the following attributes:
 
-+ version - format of the user's profile data
-+ username - with format `^[a-z0-9_]{1,60}$`
-+ owner_address - ethereum address associated with the private key the user is using for identification
-+ profile - user specified profile data
+* username - with format `^[a-zA-Z][a-zA-Z0-9_]{2,59}$`
+* owner_address - ethereum address associated with the private key the user is using for identification
+* profile - user specified profile data
 
 ## User Registration [/v1/users]
 
@@ -70,9 +71,11 @@ The address is extracted from the signature.
 
         {
             "payload": {
-                "profile": {"name": "Mr Tester"},
+                "custom": {
+                    "name": "Mr Tester"
+                },
+                "username": "testuser",
                 "timestamp": 1480077346.786651,
-                "username": "testuser"
             },
             "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
         }
@@ -80,10 +83,9 @@ The address is extracted from the signature.
 + Response 200 (application/json)
 
         {
-            "version": "1",
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
-            "profile": {
+            "custom": {
                 "name": "Mr Tester"
             }
         }
@@ -131,7 +133,6 @@ The address is extracted from the signature.
 + Response 200 (application/json)
 
         {
-            "version": "1",
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
             "profile": {
@@ -169,7 +170,6 @@ Allows the user to update their profile
 + Response 200 (application/json)
 
         {
-            "version": "1",
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
             "profile": {
