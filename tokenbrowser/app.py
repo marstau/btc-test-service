@@ -30,10 +30,10 @@ def process_config():
             p = urllib.parse.urlparse(os.environ['DATABASE_URL'])
             config['database'] = {
                 'host': '/tmp/.s.PGSQL.6101',
-                'db': p.path[1:]
+                'database': p.path[1:]
             }
             if p.username:
-                config['database']['username'] = p.username
+                config['database']['user'] = p.username
             if p.password:
                 config['database']['password'] = p.password
         else:
