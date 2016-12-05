@@ -1,5 +1,5 @@
 #PYTHON3
-git+ssh://git@github.com/tokenbrowser/tokenbrowser-python.git
-git+ssh://git@github.com/tristan/asyncbb.git
+git+git://github.com/tokenbrowser/tokenbrowser-python.git
+git+git://github.com/tristan/asyncbb.git
 names==0.3.0
 regex
