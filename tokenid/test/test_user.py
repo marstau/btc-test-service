@@ -2,13 +2,20 @@ import time
 
 from tornado.escape import json_decode
 
-from base import AsyncHandlerTest, async_test
-from tokenbrowser.utils.crypto import sign_payload, data_decoder
+from tokenid.app import urls
+from asyncbb.test.base import AsyncHandlerTest, async_test
+from tokenbrowser.crypto import sign_payload, data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
 
 class UserHandlerTest(AsyncHandlerTest):
+
+    def get_urls(self):
+        return urls
+
+    def fetch(self, url, **kwargs):
+        return super(UserHandlerTest, self).fetch("/v1{}".format(url), **kwargs)
 
     @async_test
     async def test_create_user(self):
