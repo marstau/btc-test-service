@@ -2,12 +2,13 @@ import names as namegenerator
 import regex
 
 from asyncbb.handlers import BaseHandler
+from asyncbb.database import DatabaseMixin
 from asyncbb.errors import JSONHTTPError
 from tokenbrowser.utils import flatten_payload
 from tokenbrowser.crypto import ecrecover, data_decoder
 
 
-class UserCreationHandler(BaseHandler):
+class UserCreationHandler(DatabaseMixin, BaseHandler):
 
     async def post(self):
 
@@ -59,7 +60,7 @@ class UserCreationHandler(BaseHandler):
             'owner_address': address
         })
 
-class UserHandler(BaseHandler):
+class UserHandler(DatabaseMixin, BaseHandler):
 
     async def get(self, username):
 

@@ -1,9 +1,11 @@
 import time
 
 from tornado.escape import json_decode
+from tornado.testing import gen_test
 
 from tokenid.app import urls
-from asyncbb.test.base import AsyncHandlerTest, async_test
+from asyncbb.test.base import AsyncHandlerTest
+from asyncbb.test.database import requires_database
 from tokenbrowser.crypto import sign_payload, data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
@@ -17,7 +19,8 @@ class UserHandlerTest(AsyncHandlerTest):
     def fetch(self, url, **kwargs):
         return super(UserHandlerTest, self).fetch("/v1{}".format(url), **kwargs)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_create_user(self):
 
         body = {
@@ -36,13 +39,14 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(body['owner_address'], TEST_ADDRESS)
 
-        async with self.db as con:
+        async with self.pool.acquire() as con:
 
             row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_create_user_with_username(self):
 
         username = "bobsmith"
@@ -60,7 +64,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(resp.code, 200)
 
-        async with self.db as con:
+        async with self.pool.acquire() as con:
 
             row = await con.fetchrow("SELECT * FROM users WHERE username = $1", username)
 
@@ -71,7 +75,8 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(resp.code, 400)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_create_user_with_invalid_username(self):
 
         username = "bobsmith$$$@@#@!!!"
@@ -89,13 +94,14 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(resp.code, 400)
 
-        async with self.db as con:
+        async with self.pool.acquire() as con:
 
             row = await con.fetchrow("SELECT * FROM users WHERE username = $1", username)
 
         self.assertIsNone(row)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_fake_signature(self):
 
         body = {
@@ -109,12 +115,13 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(resp.code, 400)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_get_user(self):
 
         username = "bobsmith"
 
-        async with self.db as con:
+        async with self.pool.acquire() as con:
 
             await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
 
@@ -137,21 +144,24 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertEqual(body['owner_address'], TEST_ADDRESS)
         self.assertEqual(body['username'], username)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_get_invalid_user(self):
 
         resp = await self.fetch("/user/{}".format("21414124134234"), method="GET")
 
         self.assertEqual(resp.code, 400)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_get_invalid_address(self):
 
         resp = await self.fetch("/user/{}".format("0x21414124134234"), method="GET")
 
         self.assertEqual(resp.code, 400)
 
-    @async_test
+    @gen_test
+    @requires_database
     async def test_get_missing_user(self):
 
         resp = await self.fetch("/user/{}".format("bobsmith"), method="GET")
