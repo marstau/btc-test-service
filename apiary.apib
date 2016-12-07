@@ -67,6 +67,8 @@ A User object has the following attributes:
 Used to register a new username and associate it with an ethereum address.
 The address is extracted from the signature.
 
+If no username is supplied, the service will choose a random usename for the user.
+
 + Request (application/json)
 
         {
@@ -88,6 +90,22 @@ The address is extracted from the signature.
             "custom": {
                 "name": "Mr Tester"
             }
+        }
+
++ Request (application/json)
+
+        {
+            "payload": {
+                "timestamp": 1480077346.786651,
+            },
+            "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
+        }
+
++ Response 200 (application/json)
+
+        {
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "username": "testuser"
         }
 
 + Response 400 (application/json)
