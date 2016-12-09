@@ -20,7 +20,7 @@ e.g.
 {
     "payload": {
         "timestamp": 1480078657,
-        "profile": {
+        "custom": {
             "name": "Mr Tester",
             "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
         }
@@ -30,7 +30,7 @@ e.g.
 }
 becomes
 
-    {"profile":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
+    {"custom":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
 
 This data is then SHA3 Hashed (Keccak-256) and signed with the owners private key using recoverable ECDSA. Finally the resulting signature is serialised and converted to a hex string.
 *TODO*: find/write more detailed documentation for these things.
@@ -68,7 +68,7 @@ The address is extracted from the signature.
 
 If no username is supplied, the service will choose a random username for the user.
 
-### Register a user without provided username [POST]
+### Register a user provided username [POST]
 
 + Request (application/json)
 
@@ -93,19 +93,8 @@ If no username is supplied, the service will choose a random username for the us
                 "name": "Mr Tester"
             }
         }
-        
-+ Response 400 (application/json)
 
-        {
-            "errors": [
-                {
-                    "id": "username_taken",
-                    "message": "Requested username is already taken"
-                }
-            ]
-        }
-
-### Register a user whilst providing a username [POST]
+### Register a user without providing a username [POST]
 
 + Request (application/json)
 
@@ -121,7 +110,8 @@ If no username is supplied, the service will choose a random username for the us
 
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-            "username": "testuser"
+            "username": "testuser",
+            "custom": None
         }
 
 + Response 400 (application/json)
@@ -146,6 +136,75 @@ If no username is supplied, the service will choose a random username for the us
             ]
         }
 
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "username_taken",
+                    "message": "Requested username is already taken"
+                }
+            ]
+        }
+
+### Update a user [PUT]
+
++ Request (application/json)
+
+        {
+            "payload": {
+                "timestamp": 1480077346,
+                "custom": {
+                    "name": "Test User"
+                }
+            },
+            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
+        }
+
++ Response 200 (application/json)
+
+        {
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "username": "testuser",
+            "custom": {
+                "name": "Test User"
+            }
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "invalid_signature",
+                    "message": "Invalid Signature"
+                }
+            ]
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "missing_arguments",
+                    "message": "Missing arguments"
+                }
+            ]
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "username_taken",
+                    "message": "Requested username is already taken"
+                }
+            ]
+        }
+
 ## User Retrieval/Update [/v1/users/{username}]
 
 + Parameters
@@ -158,7 +217,7 @@ If no username is supplied, the service will choose a random username for the us
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
-            "profile": {
+            "custom": {
                 "name": "Mr Tester"
             }
         }
@@ -181,7 +240,7 @@ Allows the user to update their profile
 
         {
             "payload": {
-                "profile": {
+                "custom": {
                     "name": "Mr Tester",
                     "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
                 },
@@ -196,7 +255,7 @@ Allows the user to update their profile
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
-            "profile": {
+            "custom": {
                 "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
                 "name": "Mr Tester"
             }

@@ -60,7 +60,10 @@ class UserHandlerTest(AsyncHandlerTest):
         body = {
             "payload": {
                 "timestamp": int(time.time()),
-                "username": username
+                "username": username,
+                "custom": {
+                    "name": "Bob Smith"
+                }
             },
             "address": TEST_ADDRESS
         }
@@ -76,6 +79,8 @@ class UserHandlerTest(AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE username = $1", username)
 
         self.assertIsNotNone(row)
+
+        self.assertIsNotNone(row['custom'])
 
         # make sure creating a second user with the same username fails
         resp = await self.fetch("/user", method="POST", body=body)
@@ -210,3 +215,38 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/user/{}".format("bobsmith"), method="GET")
 
         self.assertEqual(resp.code, 404)
+
+    @gen_test
+    @requires_database
+    async def test_update_user(self):
+
+        username = 'bobsmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+
+        resp = await self.fetch("/timestamp")
+        self.assertEqual(resp.code, 200)
+        timestamp = json_decode(resp.body)['timestamp']
+
+        body = {
+            "payload": {
+                "timestamp": timestamp,
+                "custom": {
+                    "testdata": "hello"
+                }
+            },
+            "address": TEST_ADDRESS
+        }
+
+        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+
+        resp = await self.fetch("/user", method="PUT", body=body)
+
+        self.assertEqual(resp.code, 200)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertEqual(json_decode(row['custom']), body['payload']['custom'])
