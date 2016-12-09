@@ -2,6 +2,7 @@ from . import handlers
 from asyncbb.web import Application
 
 urls = [
+    (r"^/v1/timestamp/?$", handlers.GenerateTimestamp),
     (r"^/v1/user/?$", handlers.UserCreationHandler),
     (r"^/v1/user/(?P<username>[^/]+)/?$", handlers.UserHandler),
 ]

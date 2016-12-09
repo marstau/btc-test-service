@@ -24,9 +24,13 @@ class UserHandlerTest(AsyncHandlerTest):
     @requires_database
     async def test_create_user(self):
 
+        resp = await self.fetch("/timestamp")
+        self.assertEqual(resp.code, 200)
+        timestamp = json_decode(resp.body)['timestamp']
+
         body = {
             "payload": {
-                "timestamp": time.time()
+                "timestamp": timestamp
             },
             "address": TEST_ADDRESS
         }
@@ -55,7 +59,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = {
             "payload": {
-                "timestamp": time.time(),
+                "timestamp": int(time.time()),
                 "username": username
             },
             "address": TEST_ADDRESS
@@ -129,6 +133,23 @@ class UserHandlerTest(AsyncHandlerTest):
                 "timestamp": time.time()
             },
             "address": "{}00000".format(TEST_ADDRESS[:-5])
+        }
+
+        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+
+        resp = await self.fetch("/user", method="POST", body=body)
+
+        self.assertEqual(resp.code, 400)
+
+    @gen_test
+    @requires_database
+    async def test_expired_timestamp(self):
+
+        body = {
+            "payload": {
+                "timestamp": int(time.time() - 60)
+            },
+            "address": TEST_ADDRESS
         }
 
         body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])

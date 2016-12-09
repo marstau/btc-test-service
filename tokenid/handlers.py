@@ -1,11 +1,22 @@
 import names as namegenerator
 import regex
+import time
 
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
 from asyncbb.errors import JSONHTTPError
-from tokenbrowser.utils import flatten_payload, data_decoder
+from tokenbrowser.utils import flatten_payload, data_decoder, parse_int
 from tokenbrowser.crypto import ecrecover
+
+# used to validate the timestamp in requests. if the difference between
+# the timestamp and the current time is greater than this the reuqest
+# is rejected
+TIMESTAMP_EXPIRY = 15
+
+class GenerateTimestamp(BaseHandler):
+
+    def get(self):
+        self.write({"timestamp": int(time.time())})
 
 
 class UserCreationHandler(DatabaseMixin, BaseHandler):
@@ -27,6 +38,14 @@ class UserCreationHandler(DatabaseMixin, BaseHandler):
         address = ecrecover(flatten_payload(payload), signature)
 
         if address is None or address != expected_address:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_signature', 'message': 'Invalid Signature'}]})
+
+        # check timestamp
+        if 'timestamp' not in payload:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+
+        timestamp = parse_int(payload['timestamp'])
+        if timestamp is None or abs(int(time.time()) - timestamp) > TIMESTAMP_EXPIRY:
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_signature', 'message': 'Invalid Signature'}]})
 
         if 'username' in payload:
