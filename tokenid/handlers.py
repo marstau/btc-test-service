@@ -38,7 +38,7 @@ class UserMixin:
 
         # check timestamp
         if 'timestamp' not in payload:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_timestamp', 'message': 'The difference between the timestamp and the current time is too large'}]})
 
         timestamp = parse_int(payload['timestamp'])
         if timestamp is None or abs(int(time.time()) - timestamp) > TIMESTAMP_EXPIRY:

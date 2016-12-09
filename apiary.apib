@@ -15,6 +15,8 @@ Signatures are generated in the same way as Ethereum transaction signatures are.
 
 The source data for the signature is the json representation of the `payload` with all keys sorted by name, and all non-value whitespace removed.
 
+The payload must include a `timestamp` given in Unix Time. If the given `timestamp` is too far away from the current time (within a few seconds) the request will be rejected.
+
 e.g.
 
 {
@@ -112,6 +114,17 @@ If no username is supplied, the service will choose a random username for the us
                 {
                     "id": "invalid_signature",
                     "message": "Invalid Signature"
+                }
+            ]
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "invalid_timestamp",
+                    "message": "The difference between the timestamp and the current time is too large"
                 }
             ]
         }
