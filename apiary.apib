@@ -61,7 +61,7 @@ A User object has the following attributes:
 * owner_address - ethereum address associated with the private key the user is using for identification
 * profile - user specified profile data
 
-## User Registration [/v1/users]
+## User Registration [/v1/user]
 
 Used to register a new username and associate it with an ethereum address.
 The address is extracted from the signature.
@@ -216,7 +216,7 @@ If no username is supplied, the service will choose a random username for the us
             ]
         }
 
-## User Retrieval/Update [/v1/users/{username}]
+## User Retrieval/Update [/v1/user/{username}]
 
 + Parameters
     + username: 1 (required, string) - username of the user
