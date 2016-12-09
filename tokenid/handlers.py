@@ -4,17 +4,18 @@ import regex
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
 from asyncbb.errors import JSONHTTPError
-from tokenbrowser.utils import flatten_payload
-from tokenbrowser.crypto import ecrecover, data_decoder
+from tokenbrowser.utils import flatten_payload, data_decoder
+from tokenbrowser.crypto import ecrecover
 
 
 class UserCreationHandler(DatabaseMixin, BaseHandler):
 
     async def post(self):
 
-        if 'payload' not in self.json or 'signature' not in self.json:
+        if 'payload' not in self.json or 'signature' not in self.json or 'address' not in self.json:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
+        expected_address = self.json['address']
         payload = self.json['payload']
         signature = self.json['signature']
 
@@ -25,7 +26,7 @@ class UserCreationHandler(DatabaseMixin, BaseHandler):
 
         address = ecrecover(flatten_payload(payload), signature)
 
-        if address is None:
+        if address is None or address != expected_address:
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_signature', 'message': 'Invalid Signature'}]})
 
         if 'username' in payload:
