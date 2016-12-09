@@ -12,6 +12,8 @@ from tokenbrowser.utils import data_decoder
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
 
+TEST_ADDRESS_2 = "0x056db290f8ba3250ca64a45d16284d04bc000000"
+
 class UserHandlerTest(AsyncHandlerTest):
 
     def get_urls(self):
@@ -82,7 +84,56 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row['custom'])
 
+    @gen_test
+    @requires_database
+    async def test_username_uniqueness(self):
+
+        username = 'bobsmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS_2)
+
         # make sure creating a second user with the same username fails
+        body = {
+            "payload": {
+                "timestamp": int(time.time()),
+                "username": username,
+                "custom": {
+                    "name": "Bob Smith"
+                }
+            },
+            "address": TEST_ADDRESS
+        }
+
+        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+
+        resp = await self.fetch("/user", method="POST", body=body)
+
+        self.assertEqual(resp.code, 400)
+
+    @gen_test
+    @requires_database
+    async def test_address_uniqueness(self):
+
+        username = 'bobsmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", 'bobby', TEST_ADDRESS)
+
+        # make sure creating a second user with the same username fails
+        body = {
+            "payload": {
+                "timestamp": int(time.time()),
+                "username": username,
+                "custom": {
+                    "name": "Bob Smith"
+                }
+            },
+            "address": TEST_ADDRESS
+        }
+
+        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+
         resp = await self.fetch("/user", method="POST", body=body)
 
         self.assertEqual(resp.code, 400)

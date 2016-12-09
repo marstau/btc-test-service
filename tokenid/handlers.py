@@ -107,6 +107,12 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         self.verify_payload(address, signature, payload)
 
+        # check if the address has already registered a username
+        async with self.db:
+            row = await self.db.fetchrow("SELECT * FROM users WHERE eth_address = $1", address)
+        if row is not None:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided address is already registered'}]})
+
         if 'username' in payload:
 
             username = payload['username']
