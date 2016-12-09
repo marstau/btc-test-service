@@ -63,12 +63,12 @@ A User object has the following attributes:
 
 ## User Registration [/v1/users]
 
-### Register a user [POST]
-
 Used to register a new username and associate it with an ethereum address.
 The address is extracted from the signature.
 
-If no username is supplied, the service will choose a random usename for the user.
+If no username is supplied, the service will choose a random username for the user.
+
+### Register a user without provided username [POST]
 
 + Request (application/json)
 
@@ -93,6 +93,19 @@ If no username is supplied, the service will choose a random usename for the use
                 "name": "Mr Tester"
             }
         }
+        
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "username_taken",
+                    "message": "Requested username is already taken"
+                }
+            ]
+        }
+
+### Register a user whilst providing a username [POST]
 
 + Request (application/json)
 
@@ -118,17 +131,6 @@ If no username is supplied, the service will choose a random usename for the use
                 {
                     "id": "invalid_signature",
                     "message": "Invalid Signature"
-                }
-            ]
-        }
-
-+ Response 400 (application/json)
-
-        {
-            "errors": [
-                {
-                    "id": "username_taken",
-                    "message": "Requested username is already taken"
                 }
             ]
         }
