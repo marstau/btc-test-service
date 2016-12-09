@@ -19,13 +19,12 @@ e.g.
 
 {
     "payload": {
-        "timestamp": 1480078657,
+        "timestamp": 1480078657.293965,
         "profile": {
             "name": "Mr Tester",
             "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
         }
     },
-    "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
     "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
 }
 becomes
@@ -63,12 +62,12 @@ A User object has the following attributes:
 
 ## User Registration [/v1/users]
 
-### Register a user [POST]
-
 Used to register a new username and associate it with an ethereum address.
 The address is extracted from the signature.
 
-If no username is supplied, the service will choose a random usename for the user.
+If no username is supplied, the service will choose a random username for the user.
+
+### Register a user without provided username [POST]
 
 + Request (application/json)
 
@@ -78,9 +77,8 @@ If no username is supplied, the service will choose a random usename for the use
                     "name": "Mr Tester"
                 },
                 "username": "testuser",
-                "timestamp": 1480077346,
+                "timestamp": 1480077346.786651,
             },
-            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
         }
 
@@ -93,14 +91,26 @@ If no username is supplied, the service will choose a random usename for the use
                 "name": "Mr Tester"
             }
         }
+        
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "username_taken",
+                    "message": "Requested username is already taken"
+                }
+            ]
+        }
+
+### Register a user whilst providing a username [POST]
 
 + Request (application/json)
 
         {
             "payload": {
-                "timestamp": 1480077346,
+                "timestamp": 1480077346.786651,
             },
-            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
         }
 
@@ -118,17 +128,6 @@ If no username is supplied, the service will choose a random usename for the use
                 {
                     "id": "invalid_signature",
                     "message": "Invalid Signature"
-                }
-            ]
-        }
-
-+ Response 400 (application/json)
-
-        {
-            "errors": [
-                {
-                    "id": "username_taken",
-                    "message": "Requested username is already taken"
                 }
             ]
         }
@@ -183,9 +182,8 @@ Allows the user to update their profile
                     "name": "Mr Tester",
                     "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
                 },
-                "timestamp": 1480078657,
+                "timestamp": 1480078657.293965,
             },
-            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "signature": "0x3c8a8d1ce2fb175ded6489e0d811654871f2dc533d6726c5fa3e34c5e85c4458367c7cf8d1810b54ff44cfd2e09bbf0500920633765de886dc51cbf5bc09a89d00"
         }
 
