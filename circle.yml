@@ -12,7 +12,7 @@ dependencies:
 
 test:
   override:
-    - echo "Tests overridden until tokenbrowser-python dependency is fixed, to allow doc publishing"
+    - python -m tornado.testing discover -s tokenid/test
 
 deployment:
   development:
