@@ -1,7 +1,7 @@
 FORMAT: 1A
-HOST: https://token-id-service.herokuapp.com/
+HOST: https://token-id-service.herokuapp.com
 
-# Identity Service
+# Token Identity Service
 
 This service stores user identities and information associated with those users. Users can be looked up by `uuid` or `username`.
 
@@ -19,6 +19,7 @@ The payload must include a `timestamp` given in Unix Time. If the given `timesta
 
 e.g.
 
+```json
 {
     "payload": {
         "timestamp": 1480078657,
@@ -30,9 +31,13 @@ e.g.
     "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
     "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
 }
+```
+
 becomes
 
-    {"custom":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
+```json
+{"custom":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
+```
 
 This data is then SHA3 Hashed (Keccak-256) and signed with the owners private key using recoverable ECDSA. Finally the resulting signature is serialised and converted to a hex string.
 *TODO*: find/write more detailed documentation for these things.
@@ -47,13 +52,14 @@ Important: Different error types (id) can be added and removed over time so you 
 
 + Example 404 (application/json)
 
+    {
+      "errors": [
         {
-            "errors": [
-                {
-                    "id": "not_found",
-                    "message": "Not found"
-                }
+          "id": "not_found",
+          "message": "Not found"
         }
+      ]
+    }
 
 # User Object
 
