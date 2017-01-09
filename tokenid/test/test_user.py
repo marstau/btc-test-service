@@ -248,8 +248,7 @@ class UserHandlerTest(AsyncHandlerTest):
         username = "bobsmith"
 
         async with self.pool.acquire() as con:
-
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", username, TEST_ADDRESS, '{"name":"Bob"}')
 
         resp = await self.fetch("/user/{}".format(username), method="GET")
 
@@ -269,6 +268,8 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(body['owner_address'], TEST_ADDRESS)
         self.assertEqual(body['username'], username)
+
+        self.assertEqual(body['custom'].get('name'), 'Bob')
 
     @gen_test
     @requires_database
@@ -311,7 +312,7 @@ class UserHandlerTest(AsyncHandlerTest):
             "payload": {
                 "timestamp": timestamp,
                 "custom": {
-                    "testdata": "hello"
+                    "testdata": "æ"
                 }
             },
             "address": TEST_ADDRESS

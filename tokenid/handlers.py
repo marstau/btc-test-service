@@ -1,5 +1,6 @@
 import names as namegenerator
 import regex
+import json
 
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
@@ -14,7 +15,7 @@ def user_row_for_json(row):
     return {
         'username': row['username'],
         'owner_address': row['eth_address'],
-        'custom': row['custom']
+        'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else row['custom']
     }
 
 class UserMixin(RequestVerificationMixin):
@@ -154,11 +155,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-        self.write({
-            'username': row['username'],
-            'owner_address': row['eth_address'],
-            'custom': row['custom']
-        })
+        self.write(user_row_for_json(row))
 
     async def put(self, username):
 
