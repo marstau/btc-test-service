@@ -334,3 +334,35 @@ Used to retrieve a current timestamp from the server for use in signing other re
         {
             "timestamp": 1481291348
         }
+
+
+# Group Search
+## User [/v1/search/user/{?query,offset,limit}]
+### Search by partial username [GET]
++ Parameters
+    + query: `moxiemarl` (string, required) - Partial username to match on
+      Matches on usernames using Postgres LIKE operator
+    + offset: `80` (integer, optional) - Paging offset
+      + Default: `0`
+    + limit: `20` (integer, optional) - Page size
+      + Default: `10`
+
++ Request
+    + Headers
+            Accept: application/json
+
++ Response 200 (application/json)
+  + Body
+
+    {
+      'limit': 10,
+      'offset': 0,
+      'results': [
+        {
+          'custom': None,
+          'username': 'bobsmith',
+          'owner_address': '0x056db290f8ba3250ca64a45d16284d04bc6f5fbf'
+        }
+      ],
+      'query': 'obsm'
+    }

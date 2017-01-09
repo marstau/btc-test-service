@@ -10,6 +10,13 @@ from tornado.escape import json_encode
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
 
+def user_row_for_json(row):
+    return {
+        'username': row['username'],
+        'owner_address': row['eth_address'],
+        'custom': row['custom']
+    }
+
 class UserMixin(RequestVerificationMixin):
 
     async def update_user(self, address):
@@ -169,3 +176,30 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             return await self.update_user(row['eth_address'])
 
         raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
+
+
+class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
+    async def get(self):
+        offset=int(self.get_query_argument('offset', 0, True))
+        limit=int(self.get_query_argument('limit', 10, True))
+        query=self.get_query_argument('query', None, True)
+
+        if query is None:
+            results = []
+        else:
+            async with self.db:
+                rows = await self.db.fetch("""
+                SELECT *
+                FROM users
+                WHERE username LIKE $1
+                OFFSET $2
+                LIMIT $3
+                """, '%'+query+'%', offset, limit)
+            results = [user_row_for_json(row) for row in rows]
+
+        self.write({
+            'query': query,
+            'offset': offset,
+            'limit': limit,
+            'results': results
+        })

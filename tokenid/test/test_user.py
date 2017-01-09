@@ -135,7 +135,6 @@ class UserHandlerTest(AsyncHandlerTest):
         body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
 
         resp = await self.fetch("/user", method="PUT", body=body)
-        print(resp.body)
 
         self.assertEqual(resp.code, 200)
 
