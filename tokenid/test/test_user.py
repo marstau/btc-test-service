@@ -113,6 +113,34 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    async def test_unchanged_username(self):
+
+        username = 'bobsmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+
+        # make sure settings a username with the same eth address succeeds
+        body = {
+            "payload": {
+                "timestamp": int(time.time()),
+                "username": username,
+                "custom": {
+                    "name": "Bob Smith"
+                }
+            },
+            "address": TEST_ADDRESS
+        }
+
+        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+
+        resp = await self.fetch("/user", method="PUT", body=body)
+        print(resp.body)
+
+        self.assertEqual(resp.code, 200)
+
+    @gen_test
+    @requires_database
     async def test_address_uniqueness(self):
 
         username = 'bobsmith'

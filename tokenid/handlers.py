@@ -37,8 +37,8 @@ class UserMixin(RequestVerificationMixin):
                 if not validate_username(username):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
-                # make sure the username doesn't already exist
-                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
+                # make sure the username isn't used by a different user
+                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1 AND eth_address != $2", username, address)
                 if row is not None:
                     raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
