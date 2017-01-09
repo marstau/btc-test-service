@@ -7,68 +7,8 @@ This service stores user identities and information associated with those users.
 
 In the long run, we would like to migrate this service to a decentalized identity service on the blockchain (using something like Blockstack, uPort, or others). We are still researching the best options.
 
-# Generating signatures
 
-When registering a new user and updating profile information, the user must sign the request `payload` to prove ownership of the associated ethereum address.
-
-Signatures are generated in the same way as Ethereum transaction signatures are.
-
-The source data for the signature is the json representation of the `payload` with all keys sorted by name, and all non-value whitespace removed.
-
-The payload must include a `timestamp` given in Unix Time. If the given `timestamp` is too far away from the current time (within a few seconds) the request will be rejected.
-
-e.g.
-
-```json
-{
-    "payload": {
-        "timestamp": 1480078657,
-        "custom": {
-            "name": "Mr Tester",
-            "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
-        }
-    },
-    "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-    "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
-}
-```
-
-becomes
-
-```json
-{"custom":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
-```
-
-This data is then SHA3 Hashed (Keccak-256) and signed with the owners private key using recoverable ECDSA. Finally the resulting signature is serialised and converted to a hex string.
-*TODO*: find/write more detailed documentation for these things.
-
-# Errors
-
-All error messages will return both machine (`id`) and human readable (`message`) error message. All errors, except validation_error, return only one error. Some errors will also have an optional link to the documentation (url).
-
-validation_error with status code 400 is returned when the validation of the resource fails on POST or PUT requests. Response contains errors field with a list of errors.
-
-Important: Different error types (id) can be added and removed over time so you should make sure your application accepts new ones as well.
-
-+ Example 404 (application/json)
-
-    {
-      "errors": [
-        {
-          "id": "not_found",
-          "message": "Not found"
-        }
-      ]
-    }
-
-# User Object
-
-A User object has the following attributes:
-
-* username - with format `^[a-zA-Z][a-zA-Z0-9_]{2,59}$`
-* owner_address - ethereum address associated with the private key the user is using for identification
-* profile - user specified profile data
-
+# Group Users
 ## User Registration [/v1/user]
 
 Used to register a new username and associate it with an ethereum address.
@@ -76,7 +16,7 @@ The address is extracted from the signature.
 
 If no username is supplied, the service will choose a random username for the user.
 
-### Register a user provided username [POST]
+### Register a user provided a username [POST]
 
 + Request (application/json)
 
@@ -241,7 +181,7 @@ If no username is supplied, the service will choose a random username for the us
 + Parameters
     + username: 1 (required, string) - username of the user
 
-### Get a Users info [GET]
+### Get a User's info [GET]
 
 + Response 200 (application/json)
 
@@ -323,6 +263,8 @@ Allows the user to update their profile
             ]
         }
 
+
+# Group Utils
 ## Timestamp generation [/v1/timestamp]
 
 Used to retrieve a current timestamp from the server for use in signing other requests.
@@ -366,3 +308,70 @@ Used to retrieve a current timestamp from the server for use in signing other re
       ],
       'query': 'obsm'
     }
+
+
+
+
+# Group Usage Notes
+
+## Generating signatures
+
+When registering a new user and updating profile information, the user must sign the request `payload` to prove ownership of the associated ethereum address.
+
+Signatures are generated in the same way as Ethereum transaction signatures are.
+
+The source data for the signature is the json representation of the `payload` with all keys sorted by name, and all non-value whitespace removed.
+
+The payload must include a `timestamp` given in Unix Time. If the given `timestamp` is too far away from the current time (within a few seconds) the request will be rejected.
+
+e.g.
+
+```json
+{
+    "payload": {
+        "timestamp": 1480078657,
+        "custom": {
+            "name": "Mr Tester",
+            "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
+        }
+    },
+    "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+    "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
+}
+```
+
+becomes
+
+```json
+{"custom":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
+```
+
+This data is then SHA3 Hashed (Keccak-256) and signed with the owners private key using recoverable ECDSA. Finally the resulting signature is serialised and converted to a hex string.
+*TODO*: find/write more detailed documentation for these things.
+
+## Errors
+
+All error messages will return both machine (`id`) and human readable (`message`) error message. All errors, except validation_error, return only one error. Some errors will also have an optional link to the documentation (url).
+
+validation_error with status code 400 is returned when the validation of the resource fails on POST or PUT requests. Response contains errors field with a list of errors.
+
+Important: Different error types (id) can be added and removed over time so you should make sure your application accepts new ones as well.
+
++ Example 404 (application/json)
+
+    {
+      "errors": [
+        {
+          "id": "not_found",
+          "message": "Not found"
+        }
+      ]
+    }
+
+## User Object
+
+A User object has the following attributes:
+
+* username - with format `^[a-zA-Z][a-zA-Z0-9_]{2,59}$`
+* owner_address - ethereum address associated with the private key the user is using for identification
+* profile - user specified profile data
