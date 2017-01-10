@@ -188,7 +188,7 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
                 rows = await self.db.fetch("""
                 SELECT *
                 FROM users
-                WHERE username LIKE $1
+                WHERE username ILIKE $1
                 OFFSET $2
                 LIMIT $3
                 """, '%'+query+'%', offset, limit)
