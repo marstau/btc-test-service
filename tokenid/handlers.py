@@ -112,18 +112,18 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
                 if row is None:
                     break
 
-        custom_json = None
-        if 'custom' in self.json:
-            custom_json = self.json['custom']
+        custom = None
+        if 'custom' in payload:
+            custom = payload['custom']
 
         async with self.db:
-            await self.db.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", username, address, json_encode(custom_json))
+            await self.db.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", username, address, json_encode(custom))
             await self.db.commit()
 
         self.write({
             'username': username,
             'owner_address': address,
-            'custom': custom_json
+            'custom': custom
         })
 
     def put(self):

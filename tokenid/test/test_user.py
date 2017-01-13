@@ -14,6 +14,7 @@ TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
 
 TEST_ADDRESS_2 = "0x056db290f8ba3250ca64a45d16284d04bc000000"
 
+
 class UserHandlerTest(AsyncHandlerTest):
 
     def get_urls(self):
@@ -48,7 +49,6 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertEqual(body['owner_address'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-
             row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
@@ -82,7 +82,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row)
 
-        self.assertIsNotNone(row['custom'])
+        self.assertNotEqual(row['custom'], 'null')
 
     @gen_test
     @requires_database
