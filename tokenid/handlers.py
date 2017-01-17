@@ -177,9 +177,12 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
 class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
     async def get(self):
-        offset=int(self.get_query_argument('offset', 0, True))
-        limit=int(self.get_query_argument('limit', 10, True))
-        query=self.get_query_argument('query', None, True)
+        try:
+            offset = int(self.get_query_argument('offset', 0, True))
+            limit = int(self.get_query_argument('limit', 10, True))
+        except ValueError:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        query = self.get_query_argument('query', None, True)
 
         if query is None:
             results = []
@@ -189,9 +192,10 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
                 SELECT *
                 FROM users
                 WHERE username ILIKE $1
+                ORDER BY username
                 OFFSET $2
                 LIMIT $3
-                """, '%'+query+'%', offset, limit)
+                """, '%' + query + '%', offset, limit)
             results = [user_row_for_json(row) for row in rows]
 
         self.write({
