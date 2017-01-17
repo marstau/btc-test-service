@@ -40,13 +40,13 @@ class UserMixin(RequestVerificationMixin):
             if not any(x in payload for x in ['username', 'custom']):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
-            if 'username' in payload:
+            if 'username' in payload and user['username'] != payload['username']:
                 username = payload['username']
                 if not validate_username(username):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
                 # make sure the username isn't used by a different user
-                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1 AND eth_address != $2", username, address)
+                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
                 if row is not None:
                     raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
