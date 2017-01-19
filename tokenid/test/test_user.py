@@ -312,7 +312,8 @@ class UserHandlerTest(AsyncHandlerTest):
             "payload": {
                 "timestamp": timestamp,
                 "custom": {
-                    "testdata": "æ"
+                    "testdata": "æø",
+                    "encodeddata": "\u611B\u611B\u611B"
                 }
             },
             "address": TEST_ADDRESS
