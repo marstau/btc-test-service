@@ -14,16 +14,20 @@ In the long run, we would like to migrate this service to a decentalized identit
 Used to register a new username and associate it with an ethereum address.
 The address is extracted from the signature.
 
-If no username is supplied, the service will choose a random username for the user.
-
-### Register a user provided a username [POST]
+### Register a user [POST]
 
 + Request (application/json)
 
+    The custom payload is optional, and can be used to hold extra information about a user. The username filed is optional; if no username is provided one will be generated for the user.
+
+    + Body
+    
         {
             "payload": {
                 "custom": {
-                    "name": "Mr Tester"
+                    "about": "I'm a digital Dingus",
+                    "location": "Oslo, Norway",
+                    "payment_address": "0xWalletAddressForReceivingFunds"
                 },
                 "username": "testuser",
                 "timestamp": 1480077346,
@@ -82,37 +86,6 @@ If no username is supplied, the service will choose a random username for the us
                 {
                     "id": "missing_arguments",
                     "message": "Missing arguments"
-                }
-            ]
-        }
-
-### Register a user without providing a username [POST]
-
-+ Request (application/json)
-
-        {
-            "payload": {
-                "timestamp": 1480077346,
-            },
-            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-            "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
-        }
-
-+ Response 200 (application/json)
-
-        {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-            "username": "testuser",
-            "custom": None
-        }
-
-+ Response 400 (application/json)
-
-        {
-            "errors": [
-                {
-                    "id": "username_taken",
-                    "message": "Requested username is already taken"
                 }
             ]
         }
