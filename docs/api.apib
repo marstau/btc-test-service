@@ -20,20 +20,21 @@ The address is extracted from the signature.
 
     The custom payload is optional, and can be used to hold extra information about a user. The username filed is optional; if no username is provided one will be generated for the user.
 
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
     + Body
     
         {
-            "payload": {
-                "custom": {
-                    "about": "I'm a digital Dingus",
-                    "location": "Oslo, Norway",
-                    "payment_address": "0xWalletAddressForReceivingFunds"
-                },
-                "username": "testuser",
-                "timestamp": 1480077346,
+            "custom": {
+                "about": "I'm a digital Dingus",
+                "location": "Oslo, Norway",
+                "payment_address": "0xWalletAddressForReceivingFunds"
             },
-            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-            "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
+            "username": "testuser",
         }
 
 + Response 200 (application/json)
@@ -90,20 +91,52 @@ The address is extracted from the signature.
             ]
         }
 
+### Register a user without providing a username [POST]
+
++ Request (application/json)
+
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
++ Response 200 (application/json)
+
+        {
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "username": "testuser",
+            "custom": None
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "username_taken",
+                    "message": "Requested username is already taken"
+                }
+            ]
+        }
+
 ### Update a user [PUT]
 
 + Request (application/json)
 
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
+    + Body
+
         {
-            "payload": {
-                "timestamp": 1480077346,
-                "username": "username",
-                "custom": {
-                    "name": "Test User"
-                }
-            },
-            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-            "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
+            "username": "username",
+            "custom": {
+                "name": "Test User"
+            }
         }
 
 + Response 200 (application/json)
@@ -182,16 +215,19 @@ Allows the user to update their profile
 
 + Request (application/json)
 
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
+    + Body
+
         {
-            "payload": {
-                "custom": {
-                    "name": "Mr Tester",
-                    "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
-                },
-                "timestamp": 1480078657,
-            },
-            "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-            "signature": "0x3c8a8d1ce2fb175ded6489e0d811654871f2dc533d6726c5fa3e34c5e85c4458367c7cf8d1810b54ff44cfd2e09bbf0500920633765de886dc51cbf5bc09a89d00"
+            "custom": {
+                "name": "Mr Tester",
+                "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
+            }
         }
 
 + Response 200 (application/json)
@@ -238,6 +274,7 @@ Allows the user to update their profile
 
 
 # Group Utils
+
 ## Timestamp generation [/v1/timestamp]
 
 Used to retrieve a current timestamp from the server for use in signing other requests.
@@ -286,41 +323,6 @@ Used to retrieve a current timestamp from the server for use in signing other re
 
 
 # Group Usage Notes
-
-## Generating signatures
-
-When registering a new user and updating profile information, the user must sign the request `payload` to prove ownership of the associated ethereum address.
-
-Signatures are generated in the same way as Ethereum transaction signatures are.
-
-The source data for the signature is the json representation of the `payload` with all keys sorted by name, and all non-value whitespace removed.
-
-The payload must include a `timestamp` given in Unix Time. If the given `timestamp` is too far away from the current time (within a few seconds) the request will be rejected.
-
-e.g.
-
-```json
-{
-    "payload": {
-        "timestamp": 1480078657,
-        "custom": {
-            "name": "Mr Tester",
-            "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
-        }
-    },
-    "address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
-    "signature": "0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801"
-}
-```
-
-becomes
-
-```json
-{"custom":{"avatar":"https://s3.amazonaws.com/testuser/profile.jpg","name":"Mr Tester"},"timestamp":1480078657.293965}
-```
-
-This data is then SHA3 Hashed (Keccak-256) and signed with the owners private key using recoverable ECDSA. Finally the resulting signature is serialised and converted to a hex string.
-*TODO*: find/write more detailed documentation for these things.
 
 ## Errors
 

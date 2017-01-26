@@ -4,9 +4,10 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
-from asyncbb.test.base import AsyncHandlerTest
 from asyncbb.test.database import requires_database
+from tokenservices.test.base import AsyncHandlerTest
 from tokenbrowser.crypto import sign_payload
+from tokenbrowser.request import sign_request
 from tokenbrowser.utils import data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
@@ -20,8 +21,9 @@ class UserHandlerTest(AsyncHandlerTest):
     def get_urls(self):
         return urls
 
-    def fetch(self, url, **kwargs):
-        return super(UserHandlerTest, self).fetch("/v1{}".format(url), **kwargs)
+    def get_url(self, path):
+        path = "/v1{}".format(path)
+        return super().get_url(path)
 
     @gen_test
     @requires_database
@@ -29,20 +31,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/timestamp")
         self.assertEqual(resp.code, 200)
-        timestamp = json_decode(resp.body)['timestamp']
 
-        body = {
-            "payload": {
-                "timestamp": timestamp
-            },
-            "address": TEST_ADDRESS
-        }
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST")
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
-
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 200)
+        self.assertResponseCodeEqual(resp, 200)
 
         body = json_decode(resp.body)
 
@@ -60,21 +52,15 @@ class UserHandlerTest(AsyncHandlerTest):
         username = "bobsmith"
 
         body = {
-            "payload": {
-                "timestamp": int(time.time()),
-                "username": username,
-                "custom": {
-                    "name": "Bob Smith"
-                }
-            },
-            "address": TEST_ADDRESS
+            "username": username,
+            "custom": {
+                "name": "Bob Smith"
+            }
         }
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
 
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 200)
+        self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
 
@@ -95,21 +81,15 @@ class UserHandlerTest(AsyncHandlerTest):
 
         # make sure creating a second user with the same username fails
         body = {
-            "payload": {
-                "timestamp": int(time.time()),
-                "username": username,
-                "custom": {
-                    "name": "Bob Smith"
-                }
-            },
-            "address": TEST_ADDRESS
+            "username": username,
+            "custom": {
+                "name": "Bob Smith"
+            }
         }
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
 
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400)
 
     @gen_test
     @requires_database
@@ -122,21 +102,15 @@ class UserHandlerTest(AsyncHandlerTest):
 
         # make sure settings a username with the same eth address succeeds
         body = {
-            "payload": {
-                "timestamp": int(time.time()),
-                "username": username,
-                "custom": {
-                    "name": "Bob Smith"
-                }
-            },
-            "address": TEST_ADDRESS
+            "username": username,
+            "custom": {
+                "name": "Bob Smith"
+            }
         }
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
 
-        resp = await self.fetch("/user", method="PUT", body=body)
-
-        self.assertEqual(resp.code, 200)
+        self.assertResponseCodeEqual(resp, 200)
 
     @gen_test
     @requires_database
@@ -149,21 +123,15 @@ class UserHandlerTest(AsyncHandlerTest):
 
         # make sure creating a second user with the same username fails
         body = {
-            "payload": {
-                "timestamp": int(time.time()),
-                "username": username,
-                "custom": {
-                    "name": "Bob Smith"
-                }
-            },
-            "address": TEST_ADDRESS
+            "username": username,
+            "custom": {
+                "name": "Bob Smith"
+            }
         }
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
 
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400, resp.body)
 
     @gen_test
     @requires_database
@@ -172,18 +140,12 @@ class UserHandlerTest(AsyncHandlerTest):
         username = "bobsmith$$$@@#@!!!"
 
         body = {
-            "payload": {
-                "timestamp": time.time(),
-                "username": username
-            },
-            "address": TEST_ADDRESS
+            "username": username
         }
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
 
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400, resp.body)
 
         async with self.pool.acquire() as con:
 
@@ -195,51 +157,35 @@ class UserHandlerTest(AsyncHandlerTest):
     @requires_database
     async def test_fake_signature(self):
 
-        body = {
-            "payload": {
-                "timestamp": time.time()
-            },
-            "address": TEST_ADDRESS,
-            "signature": "this is not a real signature!"
-        }
+        resp = await self.fetch_signed("/user", method="POST",
+                                signature="this is not a real signature!",
+                                timestamp=int(time.time()),
+                                address=TEST_ADDRESS)
 
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400)
 
     @gen_test
     @requires_database
     async def test_wrong_address(self):
 
-        body = {
-            "payload": {
-                "timestamp": time.time()
-            },
-            "address": "{}00000".format(TEST_ADDRESS[:-5])
-        }
+        timestamp = int(time.time())
+        signature = sign_request(TEST_PRIVATE_KEY, "POST", "/user", timestamp, None)
+        address = "{}00000".format(TEST_ADDRESS[:-5])
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", method="POST",
+                                timestamp=timestamp, address=address, signature=signature)
 
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400, resp.body)
 
     @gen_test
     @requires_database
     async def test_expired_timestamp(self):
 
-        body = {
-            "payload": {
-                "timestamp": int(time.time() - 60)
-            },
-            "address": TEST_ADDRESS
-        }
+        timestamp = int(time.time() - 60)
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", timestamp=timestamp)
 
-        resp = await self.fetch("/user", method="POST", body=body)
-
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400, resp.body)
 
     @gen_test
     @requires_database
@@ -252,7 +198,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/user/{}".format(username), method="GET")
 
-        self.assertEqual(resp.code, 200)
+        self.assertResponseCodeEqual(resp, 200)
 
         body = json_decode(resp.body)
 
@@ -262,7 +208,7 @@ class UserHandlerTest(AsyncHandlerTest):
         # test get user by address
         resp = await self.fetch("/user/{}".format(TEST_ADDRESS), method="GET")
 
-        self.assertEqual(resp.code, 200)
+        self.assertResponseCodeEqual(resp, 200)
 
         body = json_decode(resp.body)
 
@@ -277,7 +223,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/user/{}".format("21414124134234"), method="GET")
 
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400)
 
     @gen_test
     @requires_database
@@ -285,7 +231,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/user/{}".format("0x21414124134234"), method="GET")
 
-        self.assertEqual(resp.code, 400)
+        self.assertResponseCodeEqual(resp, 400)
 
     @gen_test
     @requires_database
@@ -293,7 +239,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/user/{}".format("bobsmith"), method="GET")
 
-        self.assertEqual(resp.code, 404)
+        self.assertResponseCodeEqual(resp, 404)
 
     @gen_test
     @requires_database
@@ -304,29 +250,19 @@ class UserHandlerTest(AsyncHandlerTest):
         async with self.pool.acquire() as con:
             await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
 
-        resp = await self.fetch("/timestamp")
-        self.assertEqual(resp.code, 200)
-        timestamp = json_decode(resp.body)['timestamp']
-
         body = {
-            "payload": {
-                "timestamp": timestamp,
-                "custom": {
-                    "testdata": "æø",
-                    "encodeddata": "\u611B\u611B\u611B"
-                }
-            },
-            "address": TEST_ADDRESS
+            "custom": {
+                "testdata": "æø",
+                "encodeddata": "\u611B\u611B\u611B"
+            }
         }
 
-        body['signature'] = sign_payload(TEST_PRIVATE_KEY, body['payload'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
 
-        resp = await self.fetch("/user", method="PUT", body=body)
-
-        self.assertEqual(resp.code, 200)
+        self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
             row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertEqual(json_decode(row['custom']), body['payload']['custom'])
+        self.assertEqual(json_decode(row['custom']), body['custom'])

@@ -22,13 +22,7 @@ class UserMixin(RequestVerificationMixin):
 
     async def update_user(self, address):
 
-        if 'payload' not in self.json or 'signature' not in self.json:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-
-        payload = self.json['payload']
-        signature = self.json['signature']
-
-        self.verify_payload(address, signature, payload)
+        payload = self.json
 
         async with self.db:
 
@@ -74,14 +68,8 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
     async def post(self):
 
-        if 'payload' not in self.json or 'signature' not in self.json or 'address' not in self.json:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-
-        address = self.json['address']
-        payload = self.json['payload']
-        signature = self.json['signature']
-
-        self.verify_payload(address, signature, payload)
+        address = self.verify_request()
+        payload = self.json
 
         # check if the address has already registered a username
         async with self.db:
@@ -128,11 +116,8 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
     def put(self):
 
-        if 'payload' not in self.json or 'signature' not in self.json or 'address' not in self.json:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-
-        expected_address = self.json['address']
-        return self.update_user(expected_address)
+        address = self.verify_request()
+        return self.update_user(address)
 
 class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
@@ -161,7 +146,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         if regex.match('^0x[a-fA-F0-9]{40}$', username):
 
-            return await self.update_user(username)
+            address_to_update = username
 
         elif regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
 
@@ -170,18 +155,31 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             if row is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            return await self.update_user(row['eth_address'])
+            address_to_update = row['eth_address']
 
-        raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
+        else:
+
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
+
+        request_address = self.verify_request()
+
+        if request_address != address_to_update:
+
+            raise JSONHTTPError(401, body={'errors': [{'id': 'permission_denied', 'message': 'Permission Denied'}]})
+
+        return await self.update_user(address_to_update)
 
 
 class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
+
     async def get(self):
+
         try:
             offset = int(self.get_query_argument('offset', 0, True))
             limit = int(self.get_query_argument('limit', 10, True))
         except ValueError:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+
         query = self.get_query_argument('query', None, True)
 
         if query is None:
