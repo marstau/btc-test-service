@@ -169,7 +169,7 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_wrong_address(self):
 
         timestamp = int(time.time())
-        signature = sign_request(TEST_PRIVATE_KEY, "POST", "/user", timestamp, None)
+        signature = sign_request(TEST_PRIVATE_KEY, "POST", "/v1/user", timestamp, None)
         address = "{}00000".format(TEST_ADDRESS[:-5])
 
         resp = await self.fetch_signed("/user", method="POST",
