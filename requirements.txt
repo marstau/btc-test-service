@@ -1,5 +1,6 @@
 #PYTHON3
 -e git+git://github.com/tristan/asyncbb.git#egg=asyncbb
+-e git+ssh://git@github.com/tristan/ethutils.git#egg=ethutils
 -e git+ssh://git@github.com/tokenbrowser/tokenbrowser-python.git#egg=tokenbrowser
 -e git+ssh://git@github.com/tokenbrowser/token-services-lib.git#egg=token-services
 asyncpg==0.7.0
