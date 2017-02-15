@@ -86,7 +86,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
             # check username doesn't already exist
             async with self.db:
-                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
+                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
             if row is not None:
                 raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
@@ -96,7 +96,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             while True:
                 username = ''.join(namegenerator.get_full_name().split())
                 async with self.db:
-                    row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
+                    row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
                 if row is None:
                     break
 
@@ -135,7 +135,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         else:
             async with self.db:
-                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
+                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
 
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
@@ -151,7 +151,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         elif regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
 
             async with self.db:
-                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
+                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
             if row is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 

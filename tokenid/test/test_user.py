@@ -75,6 +75,7 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_username_uniqueness(self):
 
         username = 'bobsmith'
+        capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
             await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS_2)
@@ -90,6 +91,19 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
 
         self.assertResponseCodeEqual(resp, 400)
+
+        # make sure capitalisation doesn't matter
+        body = {
+            "username": capitalised,
+            "custom": {
+                "name": "Bob Smith"
+            }
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
+
+        self.assertResponseCodeEqual(resp, 400)
+
 
     @gen_test
     @requires_database
@@ -192,9 +206,10 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_get_user(self):
 
         username = "bobsmith"
+        capitalised = "BobSmith"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", username, TEST_ADDRESS, '{"name":"Bob"}')
+            await con.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", capitalised, TEST_ADDRESS, '{"name":"Bob"}')
 
         resp = await self.fetch("/user/{}".format(username), method="GET")
 
@@ -203,7 +218,7 @@ class UserHandlerTest(AsyncHandlerTest):
         body = json_decode(resp.body)
 
         self.assertEqual(body['owner_address'], TEST_ADDRESS)
-        self.assertEqual(body['username'], username)
+        self.assertEqual(body['username'], capitalised)
 
         # test get user by address
         resp = await self.fetch("/user/{}".format(TEST_ADDRESS), method="GET")
@@ -213,7 +228,7 @@ class UserHandlerTest(AsyncHandlerTest):
         body = json_decode(resp.body)
 
         self.assertEqual(body['owner_address'], TEST_ADDRESS)
-        self.assertEqual(body['username'], username)
+        self.assertEqual(body['username'], capitalised)
 
         self.assertEqual(body['custom'].get('name'), 'Bob')
 
@@ -246,9 +261,10 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_update_user(self):
 
         username = 'bobsmith'
+        capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "custom": {
