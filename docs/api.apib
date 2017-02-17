@@ -18,7 +18,7 @@ The address is extracted from the signature.
 
 + Request (application/json)
 
-    The custom payload is optional, and can be used to hold extra information about a user. The username filed is optional; if no username is provided one will be generated for the user.
+    The custom payload is optional, and can be used to hold extra information about a user. The username field is optional; if no username is provided one will be generated for the user.
 
     + Headers
 
@@ -32,7 +32,8 @@ The address is extracted from the signature.
             "custom": {
                 "about": "I'm a digital Dingus",
                 "location": "Oslo, Norway",
-                "payment_address": "0xWalletAddressForReceivingFunds"
+                "payment_address": "0xWalletAddressForReceivingFunds",
+                "name": "Dingus McDingusface"
             },
             "username": "testuser",
         }
@@ -124,6 +125,8 @@ The address is extracted from the signature.
 
 + Request (application/json)
 
+    The custom payload is optional, and can be used to hold extra information about a user.
+
     + Headers
 
         Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
@@ -145,7 +148,10 @@ The address is extracted from the signature.
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
             "custom": {
-                "name": "Test User"
+                "about": "I'm a digital Dingus",
+                "location": "Oslo, Norway",
+                "payment_address": "0xWalletAddressForReceivingFunds",
+                "name": "Dingus McDingusface"
             }
         }
 
