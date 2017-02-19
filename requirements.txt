@@ -1,4 +1,5 @@
 #PYTHON3
+-e git+git://github.com/tristan/blockies.git#egg=blockies
 -e git+git://github.com/tristan/asyncbb.git#egg=asyncbb
 -e git+ssh://git@github.com/tristan/ethutils.git#egg=ethutils
 -e git+ssh://git@github.com/tokenbrowser/tokenbrowser-python.git#egg=tokenbrowser

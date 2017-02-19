@@ -1,22 +1,28 @@
 import names as namegenerator
 import regex
 import json
+import blockies
 
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
 from asyncbb.errors import JSONHTTPError
 from tokenservices.handlers import RequestVerificationMixin
 from tornado.escape import json_encode
+from tornado.web import HTTPError
+
 
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
 
 def user_row_for_json(row):
-    return {
+    rval = {
         'username': row['username'],
         'owner_address': row['eth_address'],
-        'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else row['custom']
+        'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {})
     }
+    if 'avatar' not in rval['custom']:
+        rval['custom']['avatar'] = "/identicon/{}.png".format(row['eth_address'])
+    return rval
 
 class UserMixin(RequestVerificationMixin):
 
@@ -57,6 +63,8 @@ class UserMixin(RequestVerificationMixin):
 
             await self.db.commit()
 
+        if 'avatar' not in custom:
+            custom['avatar'] = "/identicon/{}.png".format(address)
         self.write({
             'username': username,
             'owner_address': address,
@@ -100,9 +108,12 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
                 if row is None:
                     break
 
-        custom = None
+        custom = {}
         if 'custom' in payload:
             custom = payload['custom']
+        # set default avatar
+        if 'avatar' not in custom:
+            custom['avatar'] = "/identicon/{}.png".format(address)
 
         async with self.db:
             await self.db.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", username, address, json_encode(custom))
@@ -202,3 +213,19 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
             'limit': limit,
             'results': results
         })
+
+class IdenticonHandler(BaseHandler):
+
+    FORMAT_MAP = {
+        'PNG': 'image/png',
+        'JPG': 'image/jpeg'
+    }
+
+    def get(self, address, format):
+        format = format.upper()
+        if format not in self.FORMAT_MAP.keys():
+            raise HTTPError(404)
+        data = blockies.create(address, size=8, scale=12, format=format.upper())
+        self.set_header("Content-type", self.FORMAT_MAP[format])
+        self.set_header("Content-length", len(data))
+        self.write(data)
