@@ -2,12 +2,12 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
-from asyncbb.test.base import AsyncHandlerTest
+from tokenservices.test.base import AsyncHandlerTest
 from asyncbb.test.database import requires_database
 
 from urllib.parse import quote_plus
 
-TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
+from tokenid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS
 
 class SearchUserHandlerTest(AsyncHandlerTest):
 
@@ -15,7 +15,11 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         return urls
 
     def fetch(self, url, **kwargs):
-        return super(SearchUserHandlerTest, self).fetch("/v1{}".format(url), **kwargs)
+        return super(SearchUserHandlerTest, self).fetch(url, **kwargs)
+
+    def get_url(self, path):
+        path = "/v1{}".format(path)
+        return super().get_url(path)
 
     @gen_test
     @requires_database
@@ -115,3 +119,34 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             for res in body['results']:
                 self.assertEqual(res['username'], "{0}{1:0{2}}".format(username, j, len(str(num_of_users))))
                 j += 1
+
+    @gen_test
+    @requires_database
+    async def test_search_for_user_with_no_custom(self):
+
+        body = {
+            "username": 'BobSmith'
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
+
+        self.assertResponseCodeEqual(resp, 200)
+
+        body = json_decode(resp.body)
+
+        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+        self.assertIsNotNone(row['custom'])
+        self.assertIsNotNone(json_decode(row['custom']))
+
+        resp = await self.fetch("/search/user?query=Bob", method="GET")
+        self.assertEqual(resp.code, 200)
+        data = json_decode(resp.body)
+        self.assertEqual(len(data['results']), 1)
+        user = data['results'][0]
+        self.assertTrue('custom' in user)
+        self.assertIsNotNone(user['custom'])
+        self.assertTrue('avatar' in user['custom'])
+        self.assertIsNotNone(user['custom']['avatar'])

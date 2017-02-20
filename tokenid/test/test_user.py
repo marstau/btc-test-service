@@ -282,3 +282,60 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row)
         self.assertEqual(json_decode(row['custom']), body['custom'])
+
+    @gen_test
+    @requires_database
+    async def test_default_avatar_for_new_user_with_no_custom(self):
+
+        body = {
+            "username": 'BobSmith'
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
+
+        self.assertResponseCodeEqual(resp, 200)
+
+        body = json_decode(resp.body)
+
+        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+        self.assertIsNotNone(row['custom'])
+        self.assertIsNotNone(json_decode(row['custom']))
+
+        resp = await self.fetch("/user/BobSmith", method="GET")
+        self.assertEqual(resp.code, 200)
+        data = json_decode(resp.body)
+        self.assertIsNotNone(data['custom'])
+        self.assertTrue('avatar' in data['custom'])
+        self.assertIsNotNone(data['custom']['avatar'])
+
+    @gen_test
+    @requires_database
+    async def test_no_errors_with_null_custom(self):
+        """Test for backwards compatibility with old users that had no default custom data"""
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, 'null')", 'BobSmith', TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", 'JaneDoe', TEST_ADDRESS_2)
+            row1 = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row2 = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS_2)
+
+        self.assertIsNotNone(row1['custom'])
+        self.assertIsNone(json_decode(row1['custom']))
+        self.assertIsNone(row2['custom'])
+
+        resp = await self.fetch("/user/BobSmith", method="GET")
+        self.assertEqual(resp.code, 200)
+        data = json_decode(resp.body)
+        self.assertIsNotNone(data['custom'])
+        self.assertTrue('avatar' in data['custom'])
+        self.assertIsNotNone(data['custom']['avatar'])
+
+        resp = await self.fetch("/user/JaneDoe", method="GET")
+        self.assertEqual(resp.code, 200)
+        data = json_decode(resp.body)
+        self.assertIsNotNone(data['custom'])
+        self.assertTrue('avatar' in data['custom'])
+        self.assertIsNotNone(data['custom']['avatar'])

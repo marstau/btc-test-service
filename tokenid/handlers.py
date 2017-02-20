@@ -20,6 +20,8 @@ def user_row_for_json(row):
         'owner_address': row['eth_address'],
         'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {})
     }
+    if rval['custom'] is None:
+        rval['custom'] = {}
     if 'avatar' not in rval['custom']:
         rval['custom']['avatar'] = "/identicon/{}.png".format(row['eth_address'])
     return rval
