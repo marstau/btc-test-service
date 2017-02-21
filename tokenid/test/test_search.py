@@ -1,9 +1,11 @@
+import os
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
 from tokenservices.test.base import AsyncHandlerTest
 from asyncbb.test.database import requires_database
+from ethutils import data_encoder, private_key_to_address
 
 from urllib.parse import quote_plus
 
@@ -150,3 +152,36 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertIsNotNone(user['custom'])
         self.assertTrue('avatar' in user['custom'])
         self.assertIsNotNone(user['custom']['avatar'])
+
+    @gen_test
+    @requires_database
+    async def test_only_apps_query(self):
+
+        data_encoder, private_key_to_address
+        users = [
+            ('bob{}'.format(i), private_key_to_address(data_encoder(os.urandom(32))), False)
+            for i in range(6)
+        ]
+        bots = [
+            ('bot{}'.format(i), private_key_to_address(data_encoder(os.urandom(32))), True)
+            for i in range(4)
+        ]
+
+        async with self.pool.acquire() as con:
+            for args in users + bots:
+                await con.execute("INSERT INTO users (username, eth_address, is_app) VALUES ($1, $2, $3)", *args)
+
+        resp = await self.fetch("/search/user?query=bo", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 10)
+
+        resp = await self.fetch("/search/user?query=bo&apps=false", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 6)
+
+        resp = await self.fetch("/search/user?query=bo&apps=true", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 4)

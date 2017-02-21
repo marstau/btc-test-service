@@ -43,6 +43,7 @@ The address is extracted from the signature.
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
+	    "is_app": false,
             "custom": {
                 "name": "Mr Tester"
             }
@@ -107,7 +108,8 @@ The address is extracted from the signature.
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
-            "custom": None
+            "is_app": false,
+            "custom": null
         }
 
 + Response 400 (application/json)
@@ -120,6 +122,45 @@ The address is extracted from the signature.
                 }
             ]
         }
+
+### Register an app/bot based user [POST]
+
+Used when the registered id represents an app/bot, used by the services to know special handling of these users may be required.
+
++ Request (application/json)
+
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
+    + Body
+
+        {
+            "is_app": true
+	}
+
++ Response 200 (application/json)
+
+        {
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "username": "testuser",
+            "custom": null,
+            "is_app": true
+        }
+
++ Response 400 (application/json)
+
+        {
+            "errors": [
+                {
+                    "id": "username_taken",
+                    "message": "Requested username is already taken"
+                }
+            ]
+        }
+
 
 ### Update a user [PUT]
 
@@ -147,6 +188,7 @@ The address is extracted from the signature.
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
+            "is_app": false,
             "custom": {
                 "about": "I'm a digital Dingus",
                 "location": "Oslo, Norway",
@@ -200,6 +242,7 @@ The address is extracted from the signature.
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
+            "is_app": false,
             "custom": {
                 "name": "Mr Tester"
             }
@@ -241,6 +284,7 @@ Allows the user to update their profile
         {
             "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "username": "testuser",
+            "is_app": false,
             "custom": {
                 "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
                 "name": "Mr Tester"
@@ -295,11 +339,12 @@ Used to retrieve a current timestamp from the server for use in signing other re
 
 
 # Group Search
-## User [/v1/search/user/{?query,offset,limit}]
+## User [/v1/search/user/{?query,offset,limit,apps}]
 ### Search by partial username [GET]
 + Parameters
     + query: `moxiemarl` (string, required) - Partial username to match on
       Matches on usernames using Postgres LIKE operator
+    + apps: `true` (boolean, optional) - If present, will filter on `is_app` flag either returning only users (if `false`) or apps (if `true`).
     + offset: `80` (integer, optional) - Paging offset
       + Default: `0`
     + limit: `20` (integer, optional) - Page size
@@ -317,12 +362,13 @@ Used to retrieve a current timestamp from the server for use in signing other re
       'offset': 0,
       'results': [
         {
-          'custom': None,
+          'custom': null,
           'username': 'bobsmith',
+	  'is_app': false,
           'owner_address': '0x056db290f8ba3250ca64a45d16284d04bc6f5fbf'
         }
       ],
-      'query': 'obsm'
+      'query': 'query=obsm'
     }
 
 # Group Identicons

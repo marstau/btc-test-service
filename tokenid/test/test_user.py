@@ -44,6 +44,44 @@ class UserHandlerTest(AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
+        self.assertFalse(row['is_app'])
+
+    @gen_test
+    @requires_database
+    async def test_create_app_user(self):
+
+        resp = await self.fetch("/timestamp")
+        self.assertEqual(resp.code, 200)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body={"is_app": True})
+
+        self.assertResponseCodeEqual(resp, 200)
+
+        body = json_decode(resp.body)
+
+        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertTrue(row['is_app'])
+
+    @gen_test
+    @requires_database
+    async def test_create_app_user_bad_is_app_value(self):
+
+        resp = await self.fetch("/timestamp")
+        self.assertEqual(resp.code, 200)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body={"is_app": "bob"})
+
+        self.assertResponseCodeEqual(resp, 400)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        self.assertIsNone(row)
 
     @gen_test
     @requires_database

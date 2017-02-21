@@ -18,13 +18,27 @@ def user_row_for_json(row):
     rval = {
         'username': row['username'],
         'owner_address': row['eth_address'],
-        'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {})
+        'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {}),
+        'is_app': row['is_app']
     }
     if rval['custom'] is None:
         rval['custom'] = {}
     if 'avatar' not in rval['custom']:
         rval['custom']['avatar'] = "/identicon/{}.png".format(row['eth_address'])
     return rval
+
+def parse_boolean(b):
+    if isinstance(b, str):
+        b = b.lower()
+        if b == 'true':
+            return True
+        elif b == 'false':
+            return False
+        else:
+            return None
+    elif isinstance(b, int):
+        return bool(b)
+    return None
 
 class UserMixin(RequestVerificationMixin):
 
@@ -63,6 +77,14 @@ class UserMixin(RequestVerificationMixin):
             else:
                 custom = user['custom']
 
+            if 'is_app' is payload:
+                is_app = parse_boolean(payload['is_app'])
+                if not isinstance(is_app, bool):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+                await self.db.execute("UPDATE users SET is_app = $1 WHERE eth_address = $2", is_app, address)
+            else:
+                is_app = user['is_app']
+
             await self.db.commit()
 
         if 'avatar' not in custom:
@@ -70,7 +92,8 @@ class UserMixin(RequestVerificationMixin):
         self.write({
             'username': username,
             'owner_address': address,
-            'custom': custom
+            'custom': custom,
+            'is_app': is_app
         })
 
 
@@ -117,14 +140,23 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         if 'avatar' not in custom:
             custom['avatar'] = "/identicon/{}.png".format(address)
 
+        if 'is_app' in payload:
+            is_app = parse_boolean(payload['is_app'])
+            if is_app is None:
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        else:
+            is_app = False
+
         async with self.db:
-            await self.db.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", username, address, json_encode(custom))
+            await self.db.execute("INSERT INTO users (username, eth_address, custom, is_app) VALUES ($1, $2, $3, $4)",
+                                  username, address, json_encode(custom), is_app)
             await self.db.commit()
 
         self.write({
             'username': username,
             'owner_address': address,
-            'custom': custom
+            'custom': custom,
+            'is_app': is_app
         })
 
     def put(self):
@@ -188,29 +220,34 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
     async def get(self):
 
         try:
-            offset = int(self.get_query_argument('offset', 0, True))
-            limit = int(self.get_query_argument('limit', 10, True))
+            offset = int(self.get_query_argument('offset', 0))
+            limit = int(self.get_query_argument('limit', 10))
         except ValueError:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
-        query = self.get_query_argument('query', None, True)
+        query = self.get_query_argument('query', None)
+        apps = parse_boolean(self.get_query_argument('apps', None))
 
         if query is None:
             results = []
         else:
+            args = [offset, limit]
+            sql = "SELECT * FROM users WHERE username ILIKE $3"
+            args.append('%' + query + '%')
+            if apps is not None:
+                sql += " AND is_app = $4"
+                args.append(apps)
+            sql += " ORDER BY username OFFSET $1 LIMIT $2"
+
             async with self.db:
-                rows = await self.db.fetch("""
-                SELECT *
-                FROM users
-                WHERE username ILIKE $1
-                ORDER BY username
-                OFFSET $2
-                LIMIT $3
-                """, '%' + query + '%', offset, limit)
+                rows = await self.db.fetch(sql, *args)
             results = [user_row_for_json(row) for row in rows]
+        querystring = 'query={}'.format(query)
+        if apps is not None:
+            querystring += '&apps={}'.format('true' if apps else 'false')
 
         self.write({
-            'query': query,
+            'query': querystring,
             'offset': offset,
             'limit': limit,
             'results': results

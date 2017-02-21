@@ -1,0 +1,3 @@
+
+ALTER TABLE users ADD COLUMN is_app BOOLEAN DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_users_apps ON users (is_app);
