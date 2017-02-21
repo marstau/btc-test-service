@@ -12,6 +12,7 @@ from ethutils import data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
+TEST_PAYMENT_ADDRESS = "0x444433335555ffffaaaa222211119999ffff7777"
 
 TEST_ADDRESS_2 = "0x056db290f8ba3250ca64a45d16284d04bc000000"
 
@@ -32,7 +33,8 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/timestamp")
         self.assertEqual(resp.code, 200)
 
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST")
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST",
+                                       body={'payment_address': TEST_PAYMENT_ADDRESS})
 
         self.assertResponseCodeEqual(resp, 200)
 
@@ -53,7 +55,8 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/timestamp")
         self.assertEqual(resp.code, 200)
 
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body={"is_app": True})
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST",
+                                       body={"is_app": True, 'payment_address': TEST_PAYMENT_ADDRESS})
 
         self.assertResponseCodeEqual(resp, 200)
 
@@ -74,7 +77,8 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/timestamp")
         self.assertEqual(resp.code, 200)
 
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body={"is_app": "bob"})
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST",
+                                       body={"is_app": "bob", 'payment_address': TEST_PAYMENT_ADDRESS})
 
         self.assertResponseCodeEqual(resp, 400)
 
@@ -85,12 +89,32 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    async def test_create_user_missing_payment_address(self):
+        # TODO: change this to make sure payment_address is required
+
+        resp = await self.fetch("/timestamp")
+        self.assertEqual(resp.code, 200)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST")
+
+        #self.assertResponseCodeEqual(resp, 400)
+        self.assertResponseCodeEqual(resp, 200)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        #self.assertIsNone(row)
+        self.assertIsNotNone(row)
+
+    @gen_test
+    @requires_database
     async def test_create_user_with_username(self):
 
         username = "bobsmith"
 
         body = {
             "username": username,
+            "payment_address": TEST_PAYMENT_ADDRESS,
             "custom": {
                 "name": "Bob Smith"
             }
@@ -121,6 +145,7 @@ class UserHandlerTest(AsyncHandlerTest):
         # make sure creating a second user with the same username fails
         body = {
             "username": username,
+            "payment_address": TEST_PAYMENT_ADDRESS,
             "custom": {
                 "name": "Bob Smith"
             }
@@ -133,6 +158,7 @@ class UserHandlerTest(AsyncHandlerTest):
         # make sure capitalisation doesn't matter
         body = {
             "username": capitalised,
+            "payment_address": TEST_PAYMENT_ADDRESS,
             "custom": {
                 "name": "Bob Smith"
             }
@@ -155,6 +181,7 @@ class UserHandlerTest(AsyncHandlerTest):
         # make sure settings a username with the same eth address succeeds
         body = {
             "username": username,
+            "payment_address": TEST_PAYMENT_ADDRESS,
             "custom": {
                 "name": "Bob Smith"
             }
@@ -176,6 +203,7 @@ class UserHandlerTest(AsyncHandlerTest):
         # make sure creating a second user with the same username fails
         body = {
             "username": username,
+            "payment_address": TEST_PAYMENT_ADDRESS,
             "custom": {
                 "name": "Bob Smith"
             }
@@ -192,7 +220,8 @@ class UserHandlerTest(AsyncHandlerTest):
         username = "bobsmith$$$@@#@!!!"
 
         body = {
-            "username": username
+            "username": username,
+            "payment_address": TEST_PAYMENT_ADDRESS
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
@@ -221,11 +250,13 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_wrong_address(self):
 
         timestamp = int(time.time())
-        signature = sign_request(TEST_PRIVATE_KEY, "POST", "/v1/user", timestamp, None)
+        body = {"payment_address": TEST_PAYMENT_ADDRESS}
+        signature = sign_request(TEST_PRIVATE_KEY, "POST", "/v1/user", timestamp, body)
         address = "{}00000".format(TEST_ADDRESS[:-5])
 
         resp = await self.fetch_signed("/user", method="POST",
-                                timestamp=timestamp, address=address, signature=signature)
+                                timestamp=timestamp, address=address, signature=signature,
+                                body=body)
 
         self.assertResponseCodeEqual(resp, 400, resp.body)
 
@@ -234,8 +265,9 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_expired_timestamp(self):
 
         timestamp = int(time.time() - 60)
+        body = {"payment_address": TEST_PAYMENT_ADDRESS}
 
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", timestamp=timestamp)
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", timestamp=timestamp, body=body)
 
         self.assertResponseCodeEqual(resp, 400, resp.body)
 
@@ -323,10 +355,83 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    async def test_update_user_payment_address(self):
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        body = {
+            "payment_address": TEST_PAYMENT_ADDRESS
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
+
+    @gen_test
+    @requires_database
+    async def test_update_user_bad_payment_address(self):
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        body = {
+            "payment_address": "0x1"
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+
+        self.assertResponseCodeEqual(resp, 400)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertIsNone(row['payment_address'])
+
+    @gen_test
+    @requires_database
+    async def test_update_user_get_payment_address_from_custom(self):
+
+        # for legacy
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        body = {
+            "custom": {"payment_address": TEST_PAYMENT_ADDRESS}
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
+        self.assertIsNotNone(json_decode(row['custom']))
+
+    @gen_test
+    @requires_database
     async def test_default_avatar_for_new_user_with_no_custom(self):
 
         body = {
-            "username": 'BobSmith'
+            "username": 'BobSmith',
+            "payment_address": TEST_PAYMENT_ADDRESS
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)

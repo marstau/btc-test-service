@@ -9,7 +9,7 @@ from ethutils import data_encoder, private_key_to_address
 
 from urllib.parse import quote_plus
 
-from tokenid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS
+from tokenid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS
 
 class SearchUserHandlerTest(AsyncHandlerTest):
 
@@ -127,7 +127,8 @@ class SearchUserHandlerTest(AsyncHandlerTest):
     async def test_search_for_user_with_no_custom(self):
 
         body = {
-            "username": 'BobSmith'
+            "username": 'BobSmith',
+            "payment_address": TEST_PAYMENT_ADDRESS
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)

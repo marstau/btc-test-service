@@ -9,7 +9,7 @@ from asyncbb.errors import JSONHTTPError
 from tokenservices.handlers import RequestVerificationMixin
 from tornado.escape import json_encode
 from tornado.web import HTTPError
-
+from tokenbrowser.utils import validate_address
 
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
@@ -18,6 +18,7 @@ def user_row_for_json(row):
     rval = {
         'username': row['username'],
         'owner_address': row['eth_address'],
+        'payment_address': row['payment_address'],
         'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {}),
         'is_app': row['is_app']
     }
@@ -53,7 +54,7 @@ class UserMixin(RequestVerificationMixin):
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            if not any(x in payload for x in ['username', 'custom']):
+            if not any(x in payload for x in ['username', 'custom', 'payment_address']):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
             if 'username' in payload and user['username'] != payload['username']:
@@ -70,9 +71,25 @@ class UserMixin(RequestVerificationMixin):
             else:
                 username = user['username']
 
-            if 'custom' in payload:
-                custom = payload['custom']
+            if 'payment_address' in payload:
+                payment_address = payload['payment_address']
+            elif 'custom' in payload and 'payment_address' in payload['custom']:
+                payment_address = payload['custom']['payment_address']
+            else:
+                payment_address = None
+            if payment_address:
+                if not validate_address(payment_address):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
+                await self.db.execute("UPDATE users SET payment_address = $1 WHERE eth_address = $2", payment_address, address)
+            else:
+                payment_address = user['payment_address']
 
+            if 'custom' in payload or 'payment_address' in payload:
+                custom = payload.get('custom', user['custom'])
+                if 'payment_address' in payload:
+                    if custom is None:
+                        custom = {}
+                    custom['payment_address'] = payment_address
                 await self.db.execute("UPDATE users SET custom = $1 WHERE eth_address = $2", json_encode(custom), address)
             else:
                 custom = user['custom']
@@ -92,6 +109,7 @@ class UserMixin(RequestVerificationMixin):
         self.write({
             'username': username,
             'owner_address': address,
+            'payment_address': payment_address,
             'custom': custom,
             'is_app': is_app
         })
@@ -140,6 +158,20 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         if 'avatar' not in custom:
             custom['avatar'] = "/identicon/{}.png".format(address)
 
+        if 'payment_address' in payload:
+            payment_address = payload['payment_address']
+            if not validate_address(payment_address):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
+            custom['payment_address'] = payment_address
+        elif 'payment_address' in custom:
+            payment_address = custom['payment_address']
+            if not validate_address(payment_address):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
+        else:
+            #raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Missing Payment Address'}]})
+            # TODO: not required right now
+            payment_address = None
+
         if 'is_app' in payload:
             is_app = parse_boolean(payload['is_app'])
             if is_app is None:
@@ -148,13 +180,17 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             is_app = False
 
         async with self.db:
-            await self.db.execute("INSERT INTO users (username, eth_address, custom, is_app) VALUES ($1, $2, $3, $4)",
-                                  username, address, json_encode(custom), is_app)
+            await self.db.execute("INSERT INTO users "
+                                  "(username, eth_address, payment_address, custom, is_app) "
+                                  "VALUES "
+                                  "($1, $2, $3, $4, $5)",
+                                  username, address, payment_address, json_encode(custom), is_app)
             await self.db.commit()
 
         self.write({
             'username': username,
             'owner_address': address,
+            'payment_address': payment_address,
             'custom': custom,
             'is_app': is_app
         })
