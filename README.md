@@ -15,7 +15,23 @@ DATABASE_URL=postgres://<postgres-dsn> env/bin/python -m tokenid
 
 ## Running on heroku
 
+### Add heroku git
+
+```
+heroku git:remote -a <heroku-project-name> -r <remote-name>
+```
+
 ### Config
+
+NOTE: if you have multiple deploys you need to append
+`--app <heroku-project-name>` to all the following commands.
+
+#### Addons
+
+```
+heroku addons:create heroku-postgresql:hobby-basic
+
+```
 
 #### Buildpacks
 
@@ -30,7 +46,7 @@ heroku config:set SSH_KEY=$(cat path/to/your/keys/id_rsa | base64)
 #### Extra Config variables
 
 ```
-PGSQL_STUNNEL_ENABLED=1
+heroku config:set PGSQL_STUNNEL_ENABLED=1
 ```
 
 The `Procfile` and `runtime.txt` files required for running on heroku
