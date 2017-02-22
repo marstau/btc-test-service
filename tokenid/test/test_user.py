@@ -378,7 +378,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
-    async def test_update_user_bad_payment_address(self):
+    async def test_update_user_payment_address(self):
 
         capitalised = 'BobSmith'
 
@@ -386,18 +386,42 @@ class UserHandlerTest(AsyncHandlerTest):
             await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
-            "payment_address": "0x1"
+            "payment_address": TEST_PAYMENT_ADDRESS
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
 
-        self.assertResponseCodeEqual(resp, 400)
+        self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
             row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertIsNone(row['payment_address'])
+        self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
+
+
+    @gen_test
+    @requires_database
+    async def test_update_user_set_is_app(self):
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        body = {
+            "is_app": True
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertTrue(row['is_app'])
 
     @gen_test
     @requires_database

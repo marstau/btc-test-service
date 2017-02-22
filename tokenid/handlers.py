@@ -29,7 +29,9 @@ def user_row_for_json(row):
     return rval
 
 def parse_boolean(b):
-    if isinstance(b, str):
+    if isinstance(b, bool):
+        return b
+    elif isinstance(b, str):
         b = b.lower()
         if b == 'true':
             return True
@@ -54,7 +56,7 @@ class UserMixin(RequestVerificationMixin):
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            if not any(x in payload for x in ['username', 'custom', 'payment_address']):
+            if not any(x in payload for x in ['username', 'custom', 'payment_address', 'is_app']):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
             if 'username' in payload and user['username'] != payload['username']:
@@ -94,7 +96,7 @@ class UserMixin(RequestVerificationMixin):
             else:
                 custom = user['custom']
 
-            if 'is_app' is payload:
+            if 'is_app' in payload:
                 is_app = parse_boolean(payload['is_app'])
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
@@ -104,6 +106,8 @@ class UserMixin(RequestVerificationMixin):
 
             await self.db.commit()
 
+        if custom is None:
+            custom = {}
         if 'avatar' not in custom:
             custom['avatar'] = "/identicon/{}.png".format(address)
         self.write({
