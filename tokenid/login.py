@@ -118,6 +118,12 @@ class LoginHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):
             await self.db.commit()
         self.write({'auth_token': token})
 
+    async def post(self, key):
+
+        address = self.verify_request()
+        self.set_login_result(key, address)
+        self.set_status(204)
+
     async def get(self, key):
 
         if self.is_request_signed():
