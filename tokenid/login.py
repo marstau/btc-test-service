@@ -168,13 +168,13 @@ class WhoDisHandler(DatabaseMixin, BaseHandler):
 
         user = None
         async with self.db:
-            row = await self.db.fetchrow("SELECT u.* FROM auth_tokens a "
+            row = await self.db.fetchrow("SELECT u.*, a.created AS auth_token_created FROM auth_tokens a "
                                          "JOIN users u ON a.address = u.eth_address "
                                          "WHERE a.token = $1", token)
             if row is not None:
                 # only allow tokens to be used for 10 minutes
                 print(row)
-                if row['created'] + timedelta(minutes=10) > datetime.utcnow():
+                if row['auth_token_created'] + timedelta(minutes=10) > datetime.utcnow():
                     user = user_row_for_json(row)
                 else:
                     print('expired')
