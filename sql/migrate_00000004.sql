@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS auth_tokens (
+    token VARCHAR PRIMARY KEY,
+    address VARCHAR,
+    created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
+);

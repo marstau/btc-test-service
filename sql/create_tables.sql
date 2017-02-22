@@ -11,4 +11,10 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_username ON users (lower(username));
 CREATE INDEX IF NOT EXISTS idx_users_apps ON users (is_app);
 
-UPDATE database_version SET version_number = 3;
+CREATE TABLE IF NOT EXISTS auth_tokens (
+    token VARCHAR PRIMARY KEY,
+    address VARCHAR,
+    created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
+);
+
+UPDATE database_version SET version_number = 4;

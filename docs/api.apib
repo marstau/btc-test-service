@@ -380,6 +380,65 @@ Used to retrieve a current timestamp from the server for use in signing other re
       "query": "query=obsm"
     }
 
+# Group Id Service Login
+
+## Login [/v1/login/{request_token}]
+
+If sent signed, this will create an auth token for the user signing the request, and send that `auth_token` to all listeners of the `request_token`
+
+If sent unsigned, this will wait for a signed request to generate an `auth_token`.
+
+`request_token`s will only live for 60 seconds. If the login takes longer, a new `request_token` must be created.
+
+`auth_token`s are single use, and only valid for 10 minutes.
+
+### Login [GET]
+
++ Request
+
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
++ Response 204 (application/json)
+
++ Request
+
+    + Headers
+
+            Accept: application/json
+    + Body
+
+        {
+             "auth_token": "dasuiHUDIYWGQIDsadwqDS"
+        }
+
+## Login [/v1/login/verify/{auth_token}]
+
+After being issues an `auth_token` the client would sent that token to the service it's logging into, that service then uses this endpoint to verify the `auth_token` and to get the actual user details associated with that..
+
++ Request
+
+    + Headers
+
+            Accept: application/json
+
+    + Body
+
+        {
+            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+            "username": "testuser",
+            "is_app": false,
+            "custom": {
+                "name": "Mr Tester"
+            }
+        }
+
+Used by
+
 # Group Identicons
 ## Get Identicon [/identicon/{id}.png]
 
