@@ -21,7 +21,9 @@ def user_row_for_json(row):
         'owner_address': row['eth_address'],
         'payment_address': row['payment_address'],
         'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {}),
-        'is_app': row['is_app']
+        'is_app': row['is_app'],
+        'reputation_score': float(row['reputation_score']) if row['reputation_score'] is not None else None,
+        'review_count': row['review_count']
     }
     if rval['custom'] is None:
         rval['custom'] = {}
@@ -116,6 +118,8 @@ class UserMixin(RequestVerificationMixin):
             'owner_address': address,
             'payment_address': payment_address,
             'custom': custom,
+            'reputation_score': float(user['reputation_score']) if user['reputation_score'] is not None else None,
+            'review_count': user['review_count'],
             'is_app': is_app
         })
 
@@ -197,6 +201,8 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             'owner_address': address,
             'payment_address': payment_address,
             'custom': custom,
+            'reputation_score': None,
+            'review_count': 0,
             'is_app': is_app
         })
 
