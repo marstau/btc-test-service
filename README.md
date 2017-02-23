@@ -47,6 +47,7 @@ heroku config:set SSH_KEY=$(cat path/to/your/keys/id_rsa | base64)
 
 ```
 heroku config:set PGSQL_STUNNEL_ENABLED=1
+heroku config:set REPUTATION_SERVICE_ID=0x...
 ```
 
 The `Procfile` and `runtime.txt` files required for running on heroku

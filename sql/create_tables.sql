@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
     updated TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'),
     username VARCHAR UNIQUE,
     is_app BOOLEAN DEFAULT FALSE,
+    reputation_score DECIMAL,
+    review_count INTEGER DEFAULT 0,
     custom JSON
 );
 
@@ -17,4 +19,4 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
     created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
 );
 
-UPDATE database_version SET version_number = 4;
+UPDATE database_version SET version_number = 5;

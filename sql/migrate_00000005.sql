@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN reputation_score DECIMAL;
+ALTER TABLE users ADD COLUMN review_count INTEGER DEFAULT 0;
