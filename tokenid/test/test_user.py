@@ -9,6 +9,7 @@ from tokenservices.test.base import AsyncHandlerTest
 from tokenbrowser.crypto import sign_payload
 from tokenbrowser.request import sign_request
 from ethutils import data_decoder
+from tokenservices.handlers import TIMESTAMP_EXPIRY
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -264,7 +265,7 @@ class UserHandlerTest(AsyncHandlerTest):
     @requires_database
     async def test_expired_timestamp(self):
 
-        timestamp = int(time.time() - 60)
+        timestamp = int(time.time() - (TIMESTAMP_EXPIRY + 60))
         body = {"payment_address": TEST_PAYMENT_ADDRESS}
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", timestamp=timestamp, body=body)
