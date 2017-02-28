@@ -27,7 +27,7 @@ class Application(asyncbb.web.Application):
         config = super(Application, self).process_config()
 
         if 'REPUTATION_SERVICE_ID' in os.environ:
-            config['reputation'] = {'id': os.environ['REPUTATION_SERVICE_ID']}
+            config['reputation'] = {'id': os.environ['REPUTATION_SERVICE_ID'].lower()}
 
         return config
 
