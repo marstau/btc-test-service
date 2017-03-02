@@ -3,12 +3,16 @@ machine:
     version: 3.5.2
   node:
     version: 6.7.0
+  environment:
+    PATH: "${PATH}:${HOME}/.yarn/bin"
 
 dependencies:
   pre:
     - pip install -r requirements-testing.txt
   post:
-    - npm install -g aglio
+    - yarn global --cache-folder ${HOME}/.yarn/cache add aglio --prefix ${HOME}/.yarn
+  cache_directories:
+    - ${HOME}/.yarn
 
 test:
   override:
