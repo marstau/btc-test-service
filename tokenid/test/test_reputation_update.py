@@ -33,7 +33,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self._app.config['reputation'] = {'id': TEST_ADDRESS}
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (eth_address) VALUES ($1)", TEST_PAYMENT_ADDRESS)
+            await con.execute("INSERT INTO users (token_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
 
         score = 4.4
         count = 10
@@ -43,7 +43,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 204)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_PAYMENT_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_PAYMENT_ADDRESS)
         self.assertIsNotNone(row)
         self.assertEqual(float(row['reputation_score']), score)
         self.assertEqual(row['review_count'], count)
@@ -55,7 +55,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self._app.config['reputation'] = {'id': TEST_ADDRESS_2}
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (eth_address) VALUES ($1)", TEST_PAYMENT_ADDRESS)
+            await con.execute("INSERT INTO users (token_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
 
         score = 4.4
         count = 10
@@ -65,7 +65,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 404)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_PAYMENT_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_PAYMENT_ADDRESS)
         self.assertIsNotNone(row)
         self.assertIsNone(row['reputation_score'])
         self.assertEqual(row['review_count'], 0)
@@ -75,7 +75,7 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_cannot_update_when_no_address_in_config(self):
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (eth_address) VALUES ($1)", TEST_PAYMENT_ADDRESS)
+            await con.execute("INSERT INTO users (token_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
 
         score = 4.4
         count = 10
@@ -86,7 +86,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 404)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_PAYMENT_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_PAYMENT_ADDRESS)
         self.assertIsNotNone(row)
         self.assertIsNone(row['reputation_score'])
         self.assertEqual(row['review_count'], 0)

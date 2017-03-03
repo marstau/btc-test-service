@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS users (
-    eth_address VARCHAR PRIMARY KEY,
+    token_id VARCHAR PRIMARY KEY,
     payment_address VARCHAR,
     created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'),
     updated TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'),
@@ -19,4 +19,4 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
     created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
 );
 
-UPDATE database_version SET version_number = 5;
+UPDATE database_version SET version_number = 6;

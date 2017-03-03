@@ -11,8 +11,8 @@ In the long run, we would like to migrate this service to a decentalized identit
 # Group Users
 ## User Registration [/v1/user]
 
-Used to register a new username and associate it with an ethereum address.
-The address is extracted from the signature.
+Used to register a new username and associate it with a token id.
+The token id address is extracted from the signature.
 
 ### Register a user [POST]
 
@@ -42,7 +42,7 @@ The address is extracted from the signature.
 + Response 200 (application/json)
 
         {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -57,7 +57,7 @@ The address is extracted from the signature.
             "errors": [
                 {
                     "id": "already_registered",
-                    "message": "The provided address is already registered"
+                    "message": "The provided token id address is already registered"
                 }
             ]
         }
@@ -108,7 +108,7 @@ The address is extracted from the signature.
 + Response 200 (application/json)
 
         {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": null,
             "username": "testuser",
             "is_app": false,
@@ -148,7 +148,7 @@ Used when the registered id represents an app/bot, used by the services to know 
 + Response 200 (application/json)
 
         {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "custom": null,
@@ -191,7 +191,7 @@ Used when the registered id represents an app/bot, used by the services to know 
 + Response 200 (application/json)
 
         {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -246,7 +246,7 @@ Used when the registered id represents an app/bot, used by the services to know 
 + Response 200 (application/json)
 
         {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -289,7 +289,7 @@ Allows the user to update their profile
 + Response 200 (application/json)
 
         {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -374,7 +374,7 @@ Used to retrieve a current timestamp from the server for use in signing other re
           "username": "bobsmith",
           "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
 	  "is_app": false,
-          "owner_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
+          "token_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
         }
       ],
       "query": "query=obsm"
@@ -428,7 +428,7 @@ After being issues an `auth_token` the client would sent that token to the servi
     + Body
 
         {
-            "owner_address": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -475,5 +475,5 @@ Important: Different error types (id) can be added and removed over time so you 
 A User object has the following attributes:
 
 * username - with format `^[a-zA-Z][a-zA-Z0-9_]{2,59}$`
-* owner_address - ethereum address associated with the private key the user is using for identification
+* token_id - ethereum address associated with the private key the user is using for identification
 * profile - user specified profile data

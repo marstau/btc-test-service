@@ -18,7 +18,7 @@ def validate_username(username):
 def user_row_for_json(row):
     rval = {
         'username': row['username'],
-        'owner_address': row['eth_address'],
+        'token_id': row['token_id'],
         'payment_address': row['payment_address'],
         'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {}),
         'is_app': row['is_app'],
@@ -28,7 +28,7 @@ def user_row_for_json(row):
     if rval['custom'] is None:
         rval['custom'] = {}
     if 'avatar' not in rval['custom']:
-        rval['custom']['avatar'] = "/identicon/{}.png".format(row['eth_address'])
+        rval['custom']['avatar'] = "/identicon/{}.png".format(row['token_id'])
     return rval
 
 def parse_boolean(b):
@@ -55,7 +55,7 @@ class UserMixin(RequestVerificationMixin):
         async with self.db:
 
             # make sure a user with the given address exists
-            user = await self.db.fetchrow("SELECT * FROM users WHERE eth_address = $1", address)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
@@ -72,7 +72,7 @@ class UserMixin(RequestVerificationMixin):
                 if row is not None:
                     raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
-                await self.db.execute("UPDATE users SET username = $1 WHERE eth_address = $2", username, address)
+                await self.db.execute("UPDATE users SET username = $1 WHERE token_id = $2", username, address)
             else:
                 username = user['username']
 
@@ -85,7 +85,7 @@ class UserMixin(RequestVerificationMixin):
             if payment_address:
                 if not validate_address(payment_address):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
-                await self.db.execute("UPDATE users SET payment_address = $1 WHERE eth_address = $2", payment_address, address)
+                await self.db.execute("UPDATE users SET payment_address = $1 WHERE token_id = $2", payment_address, address)
             else:
                 payment_address = user['payment_address']
 
@@ -95,7 +95,7 @@ class UserMixin(RequestVerificationMixin):
                     if custom is None:
                         custom = {}
                     custom['payment_address'] = payment_address
-                await self.db.execute("UPDATE users SET custom = $1 WHERE eth_address = $2", json_encode(custom), address)
+                await self.db.execute("UPDATE users SET custom = $1 WHERE token_id = $2", json_encode(custom), address)
             else:
                 custom = user['custom']
 
@@ -103,7 +103,7 @@ class UserMixin(RequestVerificationMixin):
                 is_app = parse_boolean(payload['is_app'])
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-                await self.db.execute("UPDATE users SET is_app = $1 WHERE eth_address = $2", is_app, address)
+                await self.db.execute("UPDATE users SET is_app = $1 WHERE token_id = $2", is_app, address)
             else:
                 is_app = user['is_app']
 
@@ -115,14 +115,13 @@ class UserMixin(RequestVerificationMixin):
             custom['avatar'] = "/identicon/{}.png".format(address)
         self.write({
             'username': username,
-            'owner_address': address,
+            'token_id': address,
             'payment_address': payment_address,
             'custom': custom,
             'reputation_score': float(user['reputation_score']) if user['reputation_score'] is not None else None,
             'review_count': user['review_count'],
             'is_app': is_app
         })
-
 
 class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
@@ -133,9 +132,9 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         # check if the address has already registered a username
         async with self.db:
-            row = await self.db.fetchrow("SELECT * FROM users WHERE eth_address = $1", address)
+            row = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
         if row is not None:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided address is already registered'}]})
+            raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided token id address is already registered'}]})
 
         if 'username' in payload:
 
@@ -190,7 +189,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         async with self.db:
             await self.db.execute("INSERT INTO users "
-                                  "(username, eth_address, payment_address, custom, is_app) "
+                                  "(username, token_id, payment_address, custom, is_app) "
                                   "VALUES "
                                   "($1, $2, $3, $4, $5)",
                                   username, address, payment_address, json_encode(custom), is_app)
@@ -198,7 +197,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         self.write({
             'username': username,
-            'owner_address': address,
+            'token_id': address,
             'payment_address': payment_address,
             'custom': custom,
             'reputation_score': None,
@@ -219,7 +218,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         if regex.match('^0x[a-fA-F0-9]{40}$', username):
 
             async with self.db:
-                row = await self.db.fetchrow("SELECT * FROM users WHERE eth_address = $1", username)
+                row = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", username)
 
         # otherwise verify that username is valid
         elif not regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
@@ -247,7 +246,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             if row is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            address_to_update = row['eth_address']
+            address_to_update = row['token_id']
 
         else:
 
@@ -334,8 +333,8 @@ class ReputationUpdateHandler(RequestVerificationMixin, DatabaseMixin, BaseHandl
         if not all(x in self.json for x in ['address', 'score', 'count']):
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
-        eth_address = self.json['address']
-        if not validate_address(eth_address):
+        token_id = self.json['address']
+        if not validate_address(token_id):
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_address', 'message': 'Invalid Address'}]})
 
         count = self.json['count']
@@ -350,8 +349,8 @@ class ReputationUpdateHandler(RequestVerificationMixin, DatabaseMixin, BaseHandl
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_score', 'message': 'Invalid Score'}]})
 
         async with self.db:
-            await self.db.execute("UPDATE users SET reputation_score = $1, review_count = $2 WHERE eth_address = $3",
-                                  score, count, eth_address)
+            await self.db.execute("UPDATE users SET reputation_score = $1, review_count = $2 WHERE token_id = $3",
+                                  score, count, token_id)
             await self.db.commit()
 
         self.set_status(204)

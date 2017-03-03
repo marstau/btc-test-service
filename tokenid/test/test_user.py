@@ -41,10 +41,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+        self.assertEqual(body['token_id'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertFalse(row['is_app'])
@@ -63,10 +63,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+        self.assertEqual(body['token_id'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertTrue(row['is_app'])
@@ -84,7 +84,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 400)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNone(row)
 
@@ -102,7 +102,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         #self.assertIsNone(row)
         self.assertIsNotNone(row)
@@ -141,7 +141,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS_2)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS_2)
 
         # make sure creating a second user with the same username fails
         body = {
@@ -177,7 +177,7 @@ class UserHandlerTest(AsyncHandlerTest):
         username = 'bobsmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         # make sure settings a username with the same eth address succeeds
         body = {
@@ -199,7 +199,7 @@ class UserHandlerTest(AsyncHandlerTest):
         username = 'bobsmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", 'bobby', TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'bobby', TEST_ADDRESS)
 
         # make sure creating a second user with the same username fails
         body = {
@@ -280,7 +280,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = "BobSmith"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, $3)", capitalised, TEST_ADDRESS, '{"name":"Bob"}')
+            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, $3)", capitalised, TEST_ADDRESS, '{"name":"Bob"}')
 
         resp = await self.fetch("/user/{}".format(username), method="GET")
 
@@ -288,7 +288,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+        self.assertEqual(body['token_id'], TEST_ADDRESS)
         self.assertEqual(body['username'], capitalised)
 
         # test get user by address
@@ -298,7 +298,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+        self.assertEqual(body['token_id'], TEST_ADDRESS)
         self.assertEqual(body['username'], capitalised)
 
         self.assertEqual(body['custom'].get('name'), 'Bob')
@@ -335,7 +335,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "custom": {
@@ -349,7 +349,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertEqual(json_decode(row['custom']), body['custom'])
@@ -361,7 +361,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "payment_address": TEST_PAYMENT_ADDRESS
@@ -372,7 +372,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
@@ -384,7 +384,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "payment_address": TEST_PAYMENT_ADDRESS
@@ -395,7 +395,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
@@ -408,7 +408,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "is_app": True
@@ -419,7 +419,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertTrue(row['is_app'])
@@ -433,7 +433,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "custom": {"payment_address": TEST_PAYMENT_ADDRESS}
@@ -444,7 +444,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
@@ -465,10 +465,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+        self.assertEqual(body['token_id'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
         self.assertIsNotNone(row['custom'])
         self.assertIsNotNone(json_decode(row['custom']))
 
@@ -485,10 +485,10 @@ class UserHandlerTest(AsyncHandlerTest):
         """Test for backwards compatibility with old users that had no default custom data"""
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address, custom) VALUES ($1, $2, 'null')", 'BobSmith', TEST_ADDRESS)
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", 'JaneDoe', TEST_ADDRESS_2)
-            row1 = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
-            row2 = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS_2)
+            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, 'null')", 'BobSmith', TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'JaneDoe', TEST_ADDRESS_2)
+            row1 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row2 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS_2)
 
         self.assertIsNotNone(row1['custom'])
         self.assertIsNone(json_decode(row1['custom']))

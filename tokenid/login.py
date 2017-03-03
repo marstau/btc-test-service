@@ -110,7 +110,7 @@ class LoginHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):
         token = b62encode(num)
 
         async with self.db:
-            row = await self.db.fetchrow("SELECT * FROM users where eth_address = $1", address)
+            row = await self.db.fetchrow("SELECT * FROM users where token_id = $1", address)
             if row is None:
                 raise JSONHTTPError(401)
             await self.db.execute("INSERT INTO auth_tokens (token, address) VALUES ($1, $2)",
@@ -169,7 +169,7 @@ class WhoDisHandler(DatabaseMixin, BaseHandler):
         user = None
         async with self.db:
             row = await self.db.fetchrow("SELECT u.*, a.created AS auth_token_created FROM auth_tokens a "
-                                         "JOIN users u ON a.address = u.eth_address "
+                                         "JOIN users u ON a.address = u.token_id "
                                          "WHERE a.token = $1", token)
             if row is not None:
                 # only allow tokens to be used for 10 minutes

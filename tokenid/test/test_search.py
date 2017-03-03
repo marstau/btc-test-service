@@ -32,7 +32,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         negative_query = 'nancy'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -52,7 +52,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         invalid_query = quote_plus('!@#$')
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         resp = await self.fetch("/search/user?query={}".format(invalid_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -67,7 +67,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         inject_attempt = quote_plus("x'; delete from users; select * from users")
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         resp = await self.fetch("/search/user?query={}".format(inject_attempt), method="GET")
         self.assertEqual(resp.code, 200)
@@ -103,7 +103,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             # creates a bunch of users with numbering suffix to test limit and offset
             # insert users in reverse order to assure that search results are returned in alphabetical order
             for i in range(num_of_users - 1, -1, -1):
-                await con.execute("INSERT INTO users (username, eth_address) VALUES ($1, $2)",
+                await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)",
                                   # make sure the suffix is always the same length to ensure it's easy to match alphabetical ordering
                                   "{0}{1:0{2}}".format(username, i, len(str(num_of_users))),
                                   # makes sure every user has a different eth address
@@ -137,10 +137,10 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['owner_address'], TEST_ADDRESS)
+        self.assertEqual(body['token_id'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE eth_address = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
         self.assertIsNotNone(row['custom'])
         self.assertIsNotNone(json_decode(row['custom']))
 
@@ -170,7 +170,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             for args in users + bots:
-                await con.execute("INSERT INTO users (username, eth_address, is_app) VALUES ($1, $2, $3)", *args)
+                await con.execute("INSERT INTO users (username, token_id, is_app) VALUES ($1, $2, $3)", *args)
 
         resp = await self.fetch("/search/user?query=bo", method="GET")
         self.assertEqual(resp.code, 200)
