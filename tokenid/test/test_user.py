@@ -4,6 +4,7 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
+from tokenid.handlers import generate_username
 from asyncbb.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
 from tokenbrowser.crypto import sign_payload
@@ -28,6 +29,12 @@ class UserHandlerTest(AsyncHandlerTest):
         return super().get_url(path)
 
     @gen_test
+    async def test_generate_username_length(self):
+        for n in [0,5]:
+            id = generate_username(n).split('user')[1]
+            self.assertEqual(len(id), n)
+
+    @gen_test
     @requires_database
     async def test_create_user(self):
 
@@ -48,6 +55,8 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row)
         self.assertFalse(row['is_app'])
+
+        self.assertIsNotNone(row['username'])
 
     @gen_test
     @requires_database

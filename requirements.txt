@@ -5,5 +5,4 @@
 -e git+ssh://git@github.com/tokenbrowser/tokenbrowser-python.git#egg=tokenbrowser
 -e git+ssh://git@github.com/tokenbrowser/token-services-lib.git#egg=token-services
 asyncpg==0.7.0
-names==0.3.0
 regex

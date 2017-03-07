@@ -1,7 +1,8 @@
-import names as namegenerator
 import regex
 import json
 import blockies
+import random
+import itertools
 
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
@@ -11,6 +12,16 @@ from tokenservices.handlers import RequestVerificationMixin
 from tornado.escape import json_encode
 from tornado.web import HTTPError
 from tokenbrowser.utils import validate_address, validate_decimal_string, parse_int
+
+MIN_AUTOID_LENGTH = 5
+
+def generate_username(autoid_length):
+    """
+    Generate usernames postfixed with a random ID which is a concatenation
+    of digits of length `autoid_length`
+    """
+    chars = '0123456789'
+    return 'user'+''.join([random.choice(chars) for x in range(autoid_length)])
 
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
@@ -152,8 +163,8 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         else:
 
             # generate temporary username
-            while True:
-                username = ''.join(namegenerator.get_full_name().split())
+            for i in itertools.count():
+                username = generate_username(MIN_AUTOID_LENGTH+i)
                 async with self.db:
                     row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
                 if row is None:
