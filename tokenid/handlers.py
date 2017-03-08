@@ -289,7 +289,8 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
             results = []
         else:
             args = [offset, limit]
-            sql = "SELECT * FROM users WHERE username ILIKE $3"
+            sql = ("SELECT * "
+                   "FROM users WHERE (username ILIKE $3 OR custom->>'name' ILIKE $3)")
             args.append('%' + query + '%')
             if apps is not None:
                 sql += " AND is_app = $4"

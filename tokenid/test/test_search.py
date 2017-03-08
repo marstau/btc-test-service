@@ -1,5 +1,5 @@
 import os
-from tornado.escape import json_decode
+from tornado.escape import json_decode, json_encode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
@@ -186,3 +186,26 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 4)
+
+    @gen_test
+    @requires_database
+    async def test_custom_name_query(self):
+
+        username = "user231"
+        name = "Bobby"
+        positive_query = 'obby'
+        negative_query = 'nancy'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, $3)",
+                              username, TEST_ADDRESS, json_encode({"name": name}))
+
+        resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+        resp = await self.fetch("/search/user?query={}".format(negative_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
