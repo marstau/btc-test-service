@@ -1,4 +1,5 @@
 import os
+import names as namegen
 from tornado.escape import json_decode, json_encode
 from tornado.testing import gen_test
 
@@ -28,7 +29,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
     async def test_username_query(self):
 
         username = "bobsmith"
-        positive_query = 'obsm'
+        positive_query = 'bobsm'
         negative_query = 'nancy'
 
         async with self.pool.acquire() as con:
@@ -83,7 +84,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
     @requires_database
     async def test_bad_limit_and_offset(self):
 
-        positive_query = 'obsm'
+        positive_query = 'bobsm'
 
         resp = await self.fetch("/search/user?query={}&offset=x".format(positive_query), method="GET")
         self.assertEqual(resp.code, 400)
@@ -109,7 +110,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
                                   # makes sure every user has a different eth address
                                   "{0:#0{1}x}".format(address + i, 42))
 
-        positive_query = 'obsm'
+        positive_query = 'bobsm'
         test_limit = 30
 
         for i in range(0, num_of_users, test_limit):
@@ -193,7 +194,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
         username = "user231"
         name = "Bobby"
-        positive_query = 'obby'
+        positive_query = 'bob'
         negative_query = 'nancy'
 
         async with self.pool.acquire() as con:
@@ -209,3 +210,52 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 0)
+
+    # def get_app(self):
+    #     self._config['database'] = {'dsn': 'postgresql://token@127.0.0.1/token-id'}
+    #     app = super().get_app()
+    #     self.pool = app.connection_pool
+    #     return app
+
+    @gen_test(timeout=300)
+    @requires_database
+    async def test_fulltextsearch(self):
+        no_of_users_to_generate = 100
+        insert_vals = [(private_key_to_address(os.urandom(32)), "user0", '{"name": "Bob Smith"}')]
+        some_bobs = False
+        for i in range(1, no_of_users_to_generate):
+            key = os.urandom(32)
+            while True:
+                name = namegen.get_full_name()
+                # make sure we never generate any user's called bob
+                if 'Bob' in name or 'bob' in name:
+                    continue
+                break
+            custom = '{{"name": "{}"}}'.format(name)
+            # give ten of the users a 'bob##' username
+            if i % (no_of_users_to_generate / 10) == 0:
+                some_bobs = True
+                username = 'bob{}'.format(i)
+            else:
+                username = 'user{}'.format(i)
+            #resp = await self.fetch_signed(
+            #    "/user", method="POST", signing_key=key,
+            #    body=body)
+            #self.assertEqual(resp.code, 200)
+            insert_vals.append((private_key_to_address(key), username, custom))
+        async with self.pool.acquire() as con:
+            await con.executemany(
+                "INSERT INTO users (token_id, username, custom) VALUES ($1, $2, $3)",
+                insert_vals)
+            count = await con.fetchrow("SELECT count(*) FROM users")
+            bobcount = await con.fetchrow("SELECT count(*) FROM users where username ilike 'bob%'")
+        self.assertTrue(count['count'] > 0)
+        self.assertTrue(bobcount['count'] > 0)
+        self.assertTrue(some_bobs)
+        resp = await self.fetch("/search/user?query=bob", method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertTrue(len(results) > 1)
+        # make sure that name is prefered over username
+        self.assertEqual(results[0]['custom']['name'], "Bob Smith")
+        self.assertTrue(results[1]['username'].startswith("bob"))

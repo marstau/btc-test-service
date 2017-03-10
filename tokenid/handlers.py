@@ -3,6 +3,7 @@ import json
 import blockies
 import random
 import itertools
+import string
 
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
@@ -16,12 +17,11 @@ from tokenbrowser.utils import validate_address, validate_decimal_string, parse_
 MIN_AUTOID_LENGTH = 5
 
 def generate_username(autoid_length):
-    """
-    Generate usernames postfixed with a random ID which is a concatenation
-    of digits of length `autoid_length`
-    """
+    """Generate usernames postfixed with a random ID which is a concatenation
+    of digits of length `autoid_length`"""
+
     chars = '0123456789'
-    return 'user'+''.join([random.choice(chars) for x in range(autoid_length)])
+    return 'user' + ''.join([random.choice(chars) for x in range(autoid_length)])
 
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
@@ -164,7 +164,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
             # generate temporary username
             for i in itertools.count():
-                username = generate_username(MIN_AUTOID_LENGTH+i)
+                username = generate_username(MIN_AUTOID_LENGTH + i)
                 async with self.db:
                     row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
                 if row is None:
@@ -288,15 +288,19 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
         if query is None:
             results = []
         else:
-            args = [offset, limit]
-            sql = ("SELECT * "
-                   "FROM users WHERE (username ILIKE $3 OR custom->>'name' ILIKE $3)")
-            args.append('%' + query + '%')
+            # strip punctuation
+            query = ''.join([c for c in query if c not in string.punctuation])
+            # split words and add in partial matching flags
+            query = '|'.join(['{}:*'.format(word) for word in query.split(' ') if word])
+            args = [offset, limit, query]
+            sql = ("SELECT * FROM "
+                   "(SELECT * FROM users, TO_TSQUERY($3) AS q "
+                   "WHERE (tsv @@ q){}) AS t1 "
+                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, custom->>'name', username "
+                   "OFFSET $1 LIMIT $2"
+                   .format(" AND is_app = $4" if apps is not None else ""))
             if apps is not None:
-                sql += " AND is_app = $4"
                 args.append(apps)
-            sql += " ORDER BY username OFFSET $1 LIMIT $2"
-
             async with self.db:
                 rows = await self.db.fetch(sql, *args)
             results = [user_row_for_json(row) for row in rows]
