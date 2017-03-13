@@ -175,7 +175,7 @@ class WhoDisHandler(DatabaseMixin, BaseHandler):
                 # only allow tokens to be used for 10 minutes
                 print(row)
                 if row['auth_token_created'] + timedelta(minutes=10) > datetime.utcnow():
-                    user = user_row_for_json(row)
+                    user = user_row_for_json(self.request, row)
                 else:
                     print('expired')
                 # remove token after single use

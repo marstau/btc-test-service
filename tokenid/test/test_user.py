@@ -487,6 +487,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertIsNotNone(data['custom'])
         self.assertTrue('avatar' in data['custom'])
         self.assertIsNotNone(data['custom']['avatar'])
+        self.assertTrue(data['custom']['avatar'].startswith('http'))
 
     @gen_test
     @requires_database

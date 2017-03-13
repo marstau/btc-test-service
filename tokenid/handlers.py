@@ -26,7 +26,7 @@ def generate_username(autoid_length):
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
 
-def user_row_for_json(row):
+def user_row_for_json(request, row):
     rval = {
         'username': row['username'],
         'token_id': row['token_id'],
@@ -40,6 +40,10 @@ def user_row_for_json(row):
         rval['custom'] = {}
     if 'avatar' not in rval['custom']:
         rval['custom']['avatar'] = "/identicon/{}.png".format(row['token_id'])
+    if rval['custom']['avatar'].startswith("/"):
+        rval['custom']['avatar'] = "{}://{}{}".format(
+            request.protocol, request.host,
+            rval['custom']['avatar'])
     return rval
 
 def parse_boolean(b):
@@ -242,7 +246,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-        self.write(user_row_for_json(row))
+        self.write(user_row_for_json(self.request, row))
 
     async def put(self, username):
 
@@ -303,7 +307,7 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
                 args.append(apps)
             async with self.db:
                 rows = await self.db.fetch(sql, *args)
-            results = [user_row_for_json(row) for row in rows]
+            results = [user_row_for_json(self.request, row) for row in rows]
         querystring = 'query={}'.format(query)
         if apps is not None:
             querystring += '&apps={}'.format('true' if apps else 'false')
