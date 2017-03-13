@@ -1,4 +1,5 @@
 import regex
+import io
 import json
 import blockies
 import random
@@ -13,6 +14,7 @@ from tokenservices.handlers import RequestVerificationMixin
 from tornado.escape import json_encode
 from tornado.web import HTTPError
 from tokenbrowser.utils import validate_address, validate_decimal_string, parse_int
+from PIL import Image
 
 MIN_AUTOID_LENGTH = 5
 
@@ -122,21 +124,52 @@ class UserMixin(RequestVerificationMixin):
             else:
                 is_app = user['is_app']
 
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
             await self.db.commit()
 
-        if custom is None:
-            custom = {}
-        if 'avatar' not in custom:
-            custom['avatar'] = "/identicon/{}.png".format(address)
-        self.write({
-            'username': username,
-            'token_id': address,
-            'payment_address': payment_address,
-            'custom': custom,
-            'reputation_score': float(user['reputation_score']) if user['reputation_score'] is not None else None,
-            'review_count': user['review_count'],
-            'is_app': is_app
-        })
+        self.write(user_row_for_json(self.request, user))
+
+    async def update_user_avatar(self, address):
+
+        # make sure a user with the given address exists
+        async with self.db:
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+
+        if user is None:
+            raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
+
+        files = self.request.files.values()
+        if len(files) != 1:
+            raise JSONHTTPError(404, body={'errors': [{'id': 'bad_arguments', 'message': 'Too many files'}]})
+
+        file = next(iter(files))
+        if len(file) != 1:
+            raise JSONHTTPError(404, body={'errors': [{'id': 'bad_arguments', 'message': 'Too many files'}]})
+        data = file[0]['body']
+        stream = io.BytesIO(data)
+
+        try:
+            img = Image.open(stream)
+        except OSError:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid image data'}]})
+        if img.size[0] > 512 or img.size[1] > 512:
+            img.thumbnail((512, 512))
+
+        stream = io.BytesIO()
+        img.save(stream, format="PNG", optimize=True)
+
+        async with self.db:
+            await self.db.execute("INSERT INTO avatars (token_id, img) VALUES ($1, $2) "
+                                  "ON CONFLICT (token_id) DO UPDATE SET img = EXCLUDED.img",
+                                  address, stream.getbuffer().tobytes())
+            custom = user['custom'] or {}
+            custom['avatar'] = "/avatar/{}.png".format(address)
+            await self.db.execute("UPDATE users SET custom = $1 WHERE token_id = $2", json_encode(custom), address)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+            await self.db.commit()
+
+        self.write(user_row_for_json(self.request, user))
+
 
 class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
@@ -208,22 +241,18 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
                                   "VALUES "
                                   "($1, $2, $3, $4, $5)",
                                   username, address, payment_address, json_encode(custom), is_app)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
             await self.db.commit()
 
-        self.write({
-            'username': username,
-            'token_id': address,
-            'payment_address': payment_address,
-            'custom': custom,
-            'reputation_score': None,
-            'review_count': 0,
-            'is_app': is_app
-        })
+        self.write(user_row_for_json(self.request, user))
 
     def put(self):
 
         address = self.verify_request()
-        return self.update_user(address)
+        if self.request.files:
+            return self.update_user_avatar(address)
+        else:
+            return self.update_user(address)
 
 class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
@@ -332,6 +361,26 @@ class IdenticonHandler(BaseHandler):
             raise HTTPError(404)
         data = blockies.create(address, size=8, scale=12, format=format.upper())
         self.set_header("Content-type", self.FORMAT_MAP[format])
+        self.set_header("Content-length", len(data))
+        self.write(data)
+
+class AvatarHandler(DatabaseMixin, BaseHandler):
+
+    async def get(self, address, format):
+
+        format = format.upper()
+        if format != 'PNG':
+            raise HTTPError(404)
+
+        async with self.db:
+            row = await self.db.fetchrow("SELECT * FROM avatars WHERE token_id = $1", address)
+
+        if row is None:
+            raise HTTPError(404)
+
+        data = row['img']
+
+        self.set_header("Content-type", "PNG")
         self.set_header("Content-length", len(data))
         self.write(data)
 

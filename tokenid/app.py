@@ -16,6 +16,7 @@ urls = [
     (r"^/v1/user/(?P<username>[^/]+)/?$", handlers.UserHandler),
     (r"^/v1/search/user/?$", handlers.SearchUserHandler),
     (r"^/identicon/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.IdenticonHandler),
+    (r"^/avatar/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.AvatarHandler),
 
     # reputation update endpoint
     (r"^/v1/reputation/?$", handlers.ReputationUpdateHandler)

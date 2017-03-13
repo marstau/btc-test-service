@@ -188,6 +188,21 @@ Used when the registered id represents an app/bot, used by the services to know 
             }
         }
 
++ Request (multipart/form-data)
+
+    Used to update a user's avatar
+
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+	Content-Type: multipart/form-data; boundary=------------boundary
+
+    + Body
+
+	<image encoded as mutilpart/form-data>
+
 + Response 200 (application/json)
 
         {
@@ -285,6 +300,21 @@ Allows the user to update their profile
                 "avatar": "https://s3.amazonaws.com/testuser/profile.jpg"
             }
         }
+
++ Request (multipart/form-data)
+
+    Used to update a user's avatar
+
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+	Content-Type: multipart/form-data; boundary=------------boundary
+
+    + Body
+
+	<image encoded as mutilpart/form-data>
 
 + Response 200 (application/json)
 
@@ -439,12 +469,20 @@ After being issues an `auth_token` the client would sent that token to the servi
 
 Used by
 
-# Group Identicons
+# Group Avatars
 ## Get Identicon [/identicon/{id}.png]
 
 Returns an identicon based off the given id address
 
 ### Get Identicon [GET]
+
++ Response 200 (image/png)
+
+## Get Avatar [/avatar/{id}.png]
+
+Returns the avatar set by `PUT /user`
+
+### Get Avatar [GET]
 
 + Response 200 (image/png)
 

@@ -33,4 +33,9 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
 ON users FOR EACH ROW EXECUTE PROCEDURE users_search_trigger();
 
-UPDATE database_version SET version_number = 7;
+CREATE TABLE IF NOT EXISTS avatars (
+    token_id VARCHAR PRIMARY KEY,
+    img BYTEA
+);
+
+UPDATE database_version SET version_number = 8;
