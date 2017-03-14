@@ -11,7 +11,7 @@ from asyncbb.database import DatabaseMixin
 from asyncbb.errors import JSONHTTPError
 from decimal import Decimal
 from tokenservices.handlers import RequestVerificationMixin
-from tornado.escape import json_encode
+from tornado.escape import json_encode, json_decode
 from tornado.web import HTTPError
 from tokenbrowser.utils import validate_address, validate_decimal_string, parse_int
 from PIL import Image
@@ -162,7 +162,8 @@ class UserMixin(RequestVerificationMixin):
             await self.db.execute("INSERT INTO avatars (token_id, img) VALUES ($1, $2) "
                                   "ON CONFLICT (token_id) DO UPDATE SET img = EXCLUDED.img",
                                   address, stream.getbuffer().tobytes())
-            custom = user['custom'] or {}
+            custom = user['custom'] or "{}"
+            custom = json_decode(custom)
             custom['avatar'] = "/avatar/{}.png".format(address)
             await self.db.execute("UPDATE users SET custom = $1 WHERE token_id = $2", json_encode(custom), address)
             user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)

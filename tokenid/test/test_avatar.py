@@ -57,7 +57,8 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, $3)",
+                              capitalised, TEST_ADDRESS, "{}")
 
         boundary = uuid4().hex
         headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
