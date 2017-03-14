@@ -86,6 +86,17 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
         self.assertEqual(resp.body, files[0][1])
 
+        # try update
+        files = [('image.png', blockies.create(TEST_ADDRESS_2, size=8, scale=12, format='PNG'))]
+        body = body_producer(boundary, files)
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                       body=body, headers=headers)
+        self.assertResponseCodeEqual(resp, 200)
+
+        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
+        self.assertResponseCodeEqual(resp, 200)
+        self.assertEqual(resp.body, files[0][1])
+
     @gen_test
     @requires_database
     async def test_send_bad_data(self):
