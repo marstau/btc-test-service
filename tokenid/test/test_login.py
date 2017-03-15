@@ -22,7 +22,7 @@ class LoginHandlerTest(AsyncHandlerTest):
 
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, 'null')", 'BobSmith', TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'BobSmith', TEST_ADDRESS)
             await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'JaneDoe', TEST_ADDRESS_2)
             row1 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
             row2 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS_2)

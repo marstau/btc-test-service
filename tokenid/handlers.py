@@ -1,6 +1,5 @@
 import regex
 import io
-import json
 import blockies
 import random
 import itertools
@@ -14,7 +13,6 @@ from asyncbb.database import DatabaseMixin
 from asyncbb.errors import JSONHTTPError
 from decimal import Decimal
 from tokenservices.handlers import RequestVerificationMixin
-from tornado.escape import json_encode, json_decode
 from tornado.web import HTTPError
 from tokenbrowser.utils import validate_address, validate_decimal_string, parse_int
 from PIL import Image
@@ -36,19 +34,28 @@ def user_row_for_json(request, row):
         'username': row['username'],
         'token_id': row['token_id'],
         'payment_address': row['payment_address'],
-        'custom': json.loads(row['custom']) if isinstance(row['custom'], str) else (row['custom'] or {}),
+        'avatar': row['avatar'] or "/identicon/{}.png".format(row['token_id']),
+        'name': row['name'],
+        'about': row['about'],
+        'location': row['location'],
         'is_app': row['is_app'],
         'reputation_score': float(row['reputation_score']) if row['reputation_score'] is not None else None,
         'review_count': row['review_count']
     }
-    if rval['custom'] is None:
-        rval['custom'] = {}
-    if 'avatar' not in rval['custom']:
-        rval['custom']['avatar'] = "/identicon/{}.png".format(row['token_id'])
-    if rval['custom']['avatar'].startswith("/"):
-        rval['custom']['avatar'] = "{}://{}{}".format(
+    if rval['avatar'].startswith("/"):
+        rval['avatar'] = "{}://{}{}".format(
             request.protocol, request.host,
-            rval['custom']['avatar'])
+            rval['avatar'])
+    # backwards compat
+    rval['custom'] = {
+        'avatar': rval['avatar']
+    }
+    if rval['name'] is not None:
+        rval['custom']['name'] = rval['name']
+    if rval['about'] is not None:
+        rval['custom']['about'] = rval['about']
+    if rval['location'] is not None:
+        rval['custom']['location'] = rval['location']
     return rval
 
 def parse_boolean(b):
@@ -79,7 +86,19 @@ class UserMixin(RequestVerificationMixin):
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            if not any(x in payload for x in ['username', 'custom', 'payment_address', 'is_app']):
+            # backwards compat
+            if 'custom' in payload:
+                custom = payload.pop('custom')
+                if 'name' in custom:
+                    payload['name'] = custom['name']
+                if 'avatar' in custom:
+                    payload['avatar'] = custom['avatar']
+                if 'about' in custom:
+                    payload['about'] = custom['about']
+                if 'location' in custom:
+                    payload['location'] = custom['location']
+
+            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app']):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
             if 'username' in payload and user['username'] != payload['username']:
@@ -93,39 +112,42 @@ class UserMixin(RequestVerificationMixin):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
                 await self.db.execute("UPDATE users SET username = $1 WHERE token_id = $2", username, address)
-            else:
-                username = user['username']
 
-            if 'payment_address' in payload:
+            if 'payment_address' in payload and payload['payment_address'] != user['payment_address']:
                 payment_address = payload['payment_address']
-            elif 'custom' in payload and 'payment_address' in payload['custom']:
-                payment_address = payload['custom']['payment_address']
-            else:
-                payment_address = None
-            if payment_address:
                 if not validate_address(payment_address):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
                 await self.db.execute("UPDATE users SET payment_address = $1 WHERE token_id = $2", payment_address, address)
-            else:
-                payment_address = user['payment_address']
 
-            if 'custom' in payload or 'payment_address' in payload:
-                custom = payload.get('custom', user['custom'])
-                if 'payment_address' in payload:
-                    if custom is None:
-                        custom = {}
-                    custom['payment_address'] = payment_address
-                await self.db.execute("UPDATE users SET custom = $1 WHERE token_id = $2", json_encode(custom), address)
-            else:
-                custom = user['custom']
-
-            if 'is_app' in payload:
+            if 'is_app' in payload and payload['is_app'] != user['is_app']:
                 is_app = parse_boolean(payload['is_app'])
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
                 await self.db.execute("UPDATE users SET is_app = $1 WHERE token_id = $2", is_app, address)
-            else:
-                is_app = user['is_app']
+
+            if 'name' in payload and payload['name'] != user['name']:
+                name = payload['name']
+                if not isinstance(name, str):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Name'}]})
+                await self.db.execute("UPDATE users SET name = $1 WHERE token_id = $2", name, address)
+
+            if 'avatar' in payload and payload['avatar'] != user['avatar']:
+                avatar = payload['avatar']
+                if not isinstance(name, str):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Avatar'}]})
+                await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar, address)
+
+            if 'about' in payload and payload['about'] != user['about']:
+                about = payload['about']
+                if not isinstance(name, str):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid About'}]})
+                await self.db.execute("UPDATE users SET about = $1 WHERE token_id = $2", about, address)
+
+            if 'location' in payload and payload['location'] != user['location']:
+                location = payload['location']
+                if not isinstance(name, str):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Location'}]})
+                await self.db.execute("UPDATE users SET location = $1 WHERE token_id = $2", location, address)
 
             user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
             await self.db.commit()
@@ -171,10 +193,8 @@ class UserMixin(RequestVerificationMixin):
                                   "ON CONFLICT (token_id) DO UPDATE "
                                   "SET img = EXCLUDED.img, hash = EXCLUDED.hash, last_modified = (now() AT TIME ZONE 'utc')",
                                   address, data, cache_hash)
-            custom = user['custom'] or "{}"
-            custom = json_decode(custom)
-            custom['avatar'] = "/avatar/{}.png".format(address)
-            await self.db.execute("UPDATE users SET custom = $1 WHERE token_id = $2", json_encode(custom), address)
+            avatar_url = "/avatar/{}.png".format(address)
+            await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar_url, address)
             user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
             await self.db.commit()
 
@@ -217,20 +237,8 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
                 if row is None:
                     break
 
-        custom = {}
-        if 'custom' in payload:
-            custom = payload['custom']
-        # set default avatar
-        if 'avatar' not in custom:
-            custom['avatar'] = "/identicon/{}.png".format(address)
-
         if 'payment_address' in payload:
             payment_address = payload['payment_address']
-            if not validate_address(payment_address):
-                raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
-            custom['payment_address'] = payment_address
-        elif 'payment_address' in custom:
-            payment_address = custom['payment_address']
             if not validate_address(payment_address):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
         else:
@@ -245,12 +253,40 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         else:
             is_app = False
 
+        if 'avatar' in payload:
+            avatar = payload['avatar']
+            if not isinstance(avatar, str):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        else:
+            avatar = None
+
+        if 'name' in payload:
+            name = payload['name']
+            if not isinstance(name, str):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        else:
+            name = None
+
+        if 'about' in payload:
+            about = payload['about']
+            if not isinstance(name, str):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        else:
+            about = None
+
+        if 'location' in payload:
+            location = payload['location']
+            if not isinstance(location, str):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        else:
+            location = None
+
         async with self.db:
             await self.db.execute("INSERT INTO users "
-                                  "(username, token_id, payment_address, custom, is_app) "
+                                  "(username, token_id, payment_address, name, avatar, is_app, about, location) "
                                   "VALUES "
-                                  "($1, $2, $3, $4, $5)",
-                                  username, address, payment_address, json_encode(custom), is_app)
+                                  "($1, $2, $3, $4, $5, $6, $7, $8)",
+                                  username, address, payment_address, name, avatar, is_app, about, location)
             user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
             await self.db.commit()
 
@@ -339,7 +375,7 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
             sql = ("SELECT * FROM "
                    "(SELECT * FROM users, TO_TSQUERY($3) AS q "
                    "WHERE (tsv @@ q){}) AS t1 "
-                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, custom->>'name', username "
+                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, username "
                    "OFFSET $1 LIMIT $2"
                    .format(" AND is_app = $4" if apps is not None else ""))
             if apps is not None:

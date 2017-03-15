@@ -125,9 +125,7 @@ class UserHandlerTest(AsyncHandlerTest):
         body = {
             "username": username,
             "payment_address": TEST_PAYMENT_ADDRESS,
-            "custom": {
-                "name": "Bob Smith"
-            }
+            "name": "Bob Smith"
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
@@ -140,7 +138,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row)
 
-        self.assertNotEqual(row['custom'], 'null')
+        self.assertEqual(row['username'], username)
 
     @gen_test
     @requires_database
@@ -156,9 +154,7 @@ class UserHandlerTest(AsyncHandlerTest):
         body = {
             "username": username,
             "payment_address": TEST_PAYMENT_ADDRESS,
-            "custom": {
-                "name": "Bob Smith"
-            }
+            "name": "Bob Smith"
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
@@ -169,9 +165,7 @@ class UserHandlerTest(AsyncHandlerTest):
         body = {
             "username": capitalised,
             "payment_address": TEST_PAYMENT_ADDRESS,
-            "custom": {
-                "name": "Bob Smith"
-            }
+            "name": "Bob Smith"
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
@@ -192,9 +186,7 @@ class UserHandlerTest(AsyncHandlerTest):
         body = {
             "username": username,
             "payment_address": TEST_PAYMENT_ADDRESS,
-            "custom": {
-                "name": "Bob Smith"
-            }
+            "name": "Bob Smith"
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
@@ -214,9 +206,7 @@ class UserHandlerTest(AsyncHandlerTest):
         body = {
             "username": username,
             "payment_address": TEST_PAYMENT_ADDRESS,
-            "custom": {
-                "name": "Bob Smith"
-            }
+            "name": "Bob Smith"
         }
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
@@ -289,7 +279,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = "BobSmith"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, $3)", capitalised, TEST_ADDRESS, '{"name":"Bob"}')
+            await con.execute("INSERT INTO users (username, token_id, name) VALUES ($1, $2, $3)", capitalised, TEST_ADDRESS, 'Bob')
 
         resp = await self.fetch("/user/{}".format(username), method="GET")
 
@@ -310,7 +300,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertEqual(body['token_id'], TEST_ADDRESS)
         self.assertEqual(body['username'], capitalised)
 
-        self.assertEqual(body['custom'].get('name'), 'Bob')
+        self.assertEqual(body['name'], 'Bob')
 
     @gen_test
     @requires_database
@@ -346,45 +336,20 @@ class UserHandlerTest(AsyncHandlerTest):
         async with self.pool.acquire() as con:
             await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
-        body = {
-            "custom": {
-                "testdata": "æø",
-                "encodeddata": "\u611B\u611B\u611B"
+        for name in ["\u611B\u611B\u611B", "æø"]:
+            body = {
+                "name": name
             }
-        }
 
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+            resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
 
-        self.assertResponseCodeEqual(resp, 200)
+            self.assertResponseCodeEqual(resp, 200)
 
-        async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            async with self.pool.acquire() as con:
+                row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
-        self.assertIsNotNone(row)
-        self.assertEqual(json_decode(row['custom']), body['custom'])
-
-    @gen_test
-    @requires_database
-    async def test_update_user_payment_address(self):
-
-        capitalised = 'BobSmith'
-
-        async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
-
-        body = {
-            "payment_address": TEST_PAYMENT_ADDRESS
-        }
-
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
-
-        self.assertResponseCodeEqual(resp, 200, resp.body)
-
-        async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
-
-        self.assertIsNotNone(row)
-        self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
+            self.assertIsNotNone(row)
+            self.assertEqual(row['name'], body['name'])
 
     @gen_test
     @requires_database
@@ -409,6 +374,28 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertIsNotNone(row)
         self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
 
+    @gen_test
+    @requires_database
+    async def test_update_user_payment_address(self):
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        body = {
+            "payment_address": TEST_PAYMENT_ADDRESS
+        }
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
 
     @gen_test
     @requires_database
@@ -435,33 +422,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
-    async def test_update_user_get_payment_address_from_custom(self):
-
-        # for legacy
-
-        capitalised = 'BobSmith'
-
-        async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
-
-        body = {
-            "custom": {"payment_address": TEST_PAYMENT_ADDRESS}
-        }
-
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
-
-        self.assertResponseCodeEqual(resp, 200, resp.body)
-
-        async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
-
-        self.assertIsNotNone(row)
-        self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
-        self.assertIsNotNone(json_decode(row['custom']))
-
-    @gen_test
-    @requires_database
-    async def test_default_avatar_for_new_user_with_no_custom(self):
+    async def test_default_avatar_for_new_user(self):
 
         body = {
             "username": 'BobSmith',
@@ -478,42 +439,36 @@ class UserHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
-        self.assertIsNotNone(row['custom'])
-        self.assertIsNotNone(json_decode(row['custom']))
+        self.assertIsNone(row['avatar'])
 
         resp = await self.fetch("/user/BobSmith", method="GET")
         self.assertEqual(resp.code, 200)
         data = json_decode(resp.body)
-        self.assertIsNotNone(data['custom'])
-        self.assertTrue('avatar' in data['custom'])
-        self.assertIsNotNone(data['custom']['avatar'])
-        self.assertTrue(data['custom']['avatar'].startswith('http'))
+        self.assertIsNotNone(data['avatar'])
+        # make sure it's a full url
+        self.assertTrue(data['avatar'].startswith('http'))
 
     @gen_test
     @requires_database
-    async def test_no_errors_with_null_custom(self):
-        """Test for backwards compatibility with old users that had no default custom data"""
+    async def test_update_user_from_custom(self):
+        """backwards compat test"""
+
+        capitalised = 'BobSmith'
+        name = "James"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, 'null')", 'BobSmith', TEST_ADDRESS)
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'JaneDoe', TEST_ADDRESS_2)
-            row1 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
-            row2 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS_2)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
-        self.assertIsNotNone(row1['custom'])
-        self.assertIsNone(json_decode(row1['custom']))
-        self.assertIsNone(row2['custom'])
+        body = {
+            "custom": {"name": name}
+        }
 
-        resp = await self.fetch("/user/BobSmith", method="GET")
-        self.assertEqual(resp.code, 200)
-        data = json_decode(resp.body)
-        self.assertIsNotNone(data['custom'])
-        self.assertTrue('avatar' in data['custom'])
-        self.assertIsNotNone(data['custom']['avatar'])
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
 
-        resp = await self.fetch("/user/JaneDoe", method="GET")
-        self.assertEqual(resp.code, 200)
-        data = json_decode(resp.body)
-        self.assertIsNotNone(data['custom'])
-        self.assertTrue('avatar' in data['custom'])
-        self.assertIsNotNone(data['custom']['avatar'])
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row['name'], name)

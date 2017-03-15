@@ -1,19 +1,14 @@
-import os
 import mimetypes
 import blockies
 from io import BytesIO
 
 from uuid import uuid4
-from tornado import gen
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
-from tokenid.handlers import generate_username
 from asyncbb.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
-from tokenbrowser.crypto import sign_payload
-from tokenbrowser.request import sign_request
 from ethutils import data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
@@ -57,8 +52,8 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, $3)",
-                              capitalised, TEST_ADDRESS, "{}")
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)",
+                              capitalised, TEST_ADDRESS)
 
         boundary = uuid4().hex
         headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
@@ -77,10 +72,8 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertIsNotNone(arow)
         self.assertEqual(arow['img'], files[0][1])
         self.assertIsNotNone(urow)
-        self.assertIsNotNone(urow['custom'])
-        custom = json_decode(urow['custom'])
-        self.assertIn('avatar', custom)
-        self.assertEqual(custom['avatar'], "/avatar/{}.png".format(TEST_ADDRESS))
+        self.assertIsNotNone(urow['avatar'])
+        self.assertEqual(urow['avatar'], "/avatar/{}.png".format(TEST_ADDRESS))
 
         resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
         self.assertResponseCodeEqual(resp, 200)
@@ -110,6 +103,16 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
             'If-Modified-Since': resp.headers['Last-Modified']
         })
         self.assertResponseCodeEqual(resp, 304)
+
+        # check that avatar stays after other update
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                       body={
+                                           "username": "James123",
+                                           "name": "Jamie"
+                                       })
+        self.assertResponseCodeEqual(resp, 200)
+        data = json_decode(resp.body)
+        self.assertTrue(data['avatar'].endswith("/avatar/{}.png".format(TEST_ADDRESS)))
 
     @gen_test
     @requires_database

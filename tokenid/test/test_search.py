@@ -125,38 +125,6 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
-    async def test_search_for_user_with_no_custom(self):
-
-        body = {
-            "username": 'BobSmith',
-            "payment_address": TEST_PAYMENT_ADDRESS
-        }
-
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
-
-        self.assertResponseCodeEqual(resp, 200)
-
-        body = json_decode(resp.body)
-
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
-
-        async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
-        self.assertIsNotNone(row['custom'])
-        self.assertIsNotNone(json_decode(row['custom']))
-
-        resp = await self.fetch("/search/user?query=Bob", method="GET")
-        self.assertEqual(resp.code, 200)
-        data = json_decode(resp.body)
-        self.assertEqual(len(data['results']), 1)
-        user = data['results'][0]
-        self.assertTrue('custom' in user)
-        self.assertIsNotNone(user['custom'])
-        self.assertTrue('avatar' in user['custom'])
-        self.assertIsNotNone(user['custom']['avatar'])
-
-    @gen_test
-    @requires_database
     async def test_only_apps_query(self):
 
         data_encoder, private_key_to_address
@@ -190,7 +158,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
-    async def test_custom_name_query(self):
+    async def test_name_query(self):
 
         username = "user231"
         name = "Bobby"
@@ -198,8 +166,8 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         negative_query = 'nancy'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, custom) VALUES ($1, $2, $3)",
-                              username, TEST_ADDRESS, json_encode({"name": name}))
+            await con.execute("INSERT INTO users (username, token_id, name) VALUES ($1, $2, $3)",
+                              username, TEST_ADDRESS, name)
 
         resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -221,7 +189,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
     @requires_database
     async def test_fulltextsearch(self):
         no_of_users_to_generate = 100
-        insert_vals = [(private_key_to_address(os.urandom(32)), "user0", '{"name": "Bob Smith"}')]
+        insert_vals = [(private_key_to_address(os.urandom(32)), "user0", "Bob Smith")]
         some_bobs = False
         for i in range(1, no_of_users_to_generate):
             key = os.urandom(32)
@@ -231,7 +199,6 @@ class SearchUserHandlerTest(AsyncHandlerTest):
                 if 'Bob' in name or 'bob' in name:
                     continue
                 break
-            custom = '{{"name": "{}"}}'.format(name)
             # give ten of the users a 'bob##' username
             if i % (no_of_users_to_generate / 10) == 0:
                 some_bobs = True
@@ -242,10 +209,10 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             #    "/user", method="POST", signing_key=key,
             #    body=body)
             #self.assertEqual(resp.code, 200)
-            insert_vals.append((private_key_to_address(key), username, custom))
+            insert_vals.append((private_key_to_address(key), username, name))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (token_id, username, custom) VALUES ($1, $2, $3)",
+                "INSERT INTO users (token_id, username, name) VALUES ($1, $2, $3)",
                 insert_vals)
             count = await con.fetchrow("SELECT count(*) FROM users")
             bobcount = await con.fetchrow("SELECT count(*) FROM users where username ilike 'bob%'")
@@ -257,5 +224,5 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         results = json_decode(resp.body)['results']
         self.assertTrue(len(results) > 1)
         # make sure that name is prefered over username
-        self.assertEqual(results[0]['custom']['name'], "Bob Smith")
+        self.assertEqual(results[0]['name'], "Bob Smith")
         self.assertTrue(results[1]['username'].startswith("bob"))
