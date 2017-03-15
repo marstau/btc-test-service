@@ -85,6 +85,10 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
         self.assertResponseCodeEqual(resp, 200)
         self.assertEqual(resp.body, files[0][1])
+        self.assertIn('Etag', resp.headers)
+        last_etag = resp.headers['Etag']
+        self.assertIn('Last-Modified', resp.headers)
+        last_modified = resp.headers['Last-Modified']
 
         # try update
         files = [('image.png', blockies.create(TEST_ADDRESS_2, size=8, scale=12, format='PNG'))]
@@ -93,9 +97,19 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
                                        body=body, headers=headers)
         self.assertResponseCodeEqual(resp, 200)
 
-        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
+        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET", headers={
+            'If-None-Match': last_etag,
+            'If-Modified-Since': last_modified
+        })
         self.assertResponseCodeEqual(resp, 200)
         self.assertEqual(resp.body, files[0][1])
+
+        # check for 304 when trying with new values
+        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET", headers={
+            'If-None-Match': resp.headers['Etag'],
+            'If-Modified-Since': resp.headers['Last-Modified']
+        })
+        self.assertResponseCodeEqual(resp, 304)
 
     @gen_test
     @requires_database

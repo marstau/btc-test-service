@@ -4,7 +4,10 @@ import json
 import blockies
 import random
 import itertools
+import email.utils
 import string
+import datetime
+import hashlib
 
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
@@ -158,10 +161,16 @@ class UserMixin(RequestVerificationMixin):
         stream = io.BytesIO()
         img.save(stream, format="PNG", optimize=True)
 
+        data = stream.getbuffer().tobytes()
+        hasher = hashlib.md5()
+        hasher.update(data)
+        cache_hash = hasher.hexdigest()
+
         async with self.db:
-            await self.db.execute("INSERT INTO avatars (token_id, img) VALUES ($1, $2) "
-                                  "ON CONFLICT (token_id) DO UPDATE SET img = EXCLUDED.img",
-                                  address, stream.getbuffer().tobytes())
+            await self.db.execute("INSERT INTO avatars (token_id, img, hash) VALUES ($1, $2, $3) "
+                                  "ON CONFLICT (token_id) DO UPDATE "
+                                  "SET img = EXCLUDED.img, hash = EXCLUDED.hash, last_modified = (now() AT TIME ZONE 'utc')",
+                                  address, data, cache_hash)
             custom = user['custom'] or "{}"
             custom = json_decode(custom)
             custom['avatar'] = "/avatar/{}.png".format(address)
@@ -349,25 +358,61 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
             'results': results
         })
 
-class IdenticonHandler(BaseHandler):
+class SimpleFileHandler(BaseHandler):
+    async def handle_file_response(self, data, content_type, etag,
+                                   last_modified, include_body=True):
+
+        last_modified = last_modified.replace(microsecond=0)
+        self.set_header("Etag", '"{}"'.format(etag))
+        self.set_header("Last-Modified", last_modified)
+        self.set_header("Content-type", content_type)
+        self.set_header("Content-length", len(data))
+
+        if self.request.headers.get("If-None-Match"):
+            # check etag
+            if self.check_etag_header():
+                # return 304
+                self.set_status(304)
+                return
+        else:
+            ims_value = self.request.headers.get("If-Modified-Since")
+            if ims_value is not None:
+                date_tuple = email.utils.parsedate(ims_value)
+                if date_tuple is not None:
+                    if_since = datetime.datetime(*date_tuple[:6])
+                    if if_since >= last_modified:
+                        self.set_status(304)
+                        return
+
+        if include_body:
+            self.write(data)
+
+class IdenticonHandler(SimpleFileHandler):
 
     FORMAT_MAP = {
         'PNG': 'image/png',
         'JPG': 'image/jpeg'
     }
 
-    def get(self, address, format):
+    def head(self, address, format):
+        return self.get(address, format, include_body=False)
+
+    async def get(self, address, format, include_body=True):
         format = format.upper()
         if format not in self.FORMAT_MAP.keys():
             raise HTTPError(404)
         data = blockies.create(address, size=8, scale=12, format=format.upper())
-        self.set_header("Content-type", self.FORMAT_MAP[format])
-        self.set_header("Content-length", len(data))
-        self.write(data)
+        hasher = hashlib.md5()
+        hasher.update(data)
+        cache_hash = hasher.hexdigest()
+        await self.handle_file_response(data, self.FORMAT_MAP[format], cache_hash, datetime.datetime(2017, 1, 1))
 
-class AvatarHandler(DatabaseMixin, BaseHandler):
+class AvatarHandler(DatabaseMixin, SimpleFileHandler):
 
-    async def get(self, address, format):
+    def head(self, address, format):
+        return self.get(address, format, include_body=False)
+
+    async def get(self, address, format, include_body=True):
 
         format = format.upper()
         if format != 'PNG':
@@ -379,11 +424,8 @@ class AvatarHandler(DatabaseMixin, BaseHandler):
         if row is None:
             raise HTTPError(404)
 
-        data = row['img']
+        await self.handle_file_response(row['img'], "image/png", row['hash'], row['last_modified'])
 
-        self.set_header("Content-type", "PNG")
-        self.set_header("Content-length", len(data))
-        self.write(data)
 
 class ReputationUpdateHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):
 
