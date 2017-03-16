@@ -4,15 +4,15 @@ machine:
   node:
     version: 6.7.0
   environment:
-    PATH: "${PATH}:${HOME}/.yarn/bin"
+    PATH: "${PATH}:~/.yarn/bin"
 
 dependencies:
   pre:
     - pip install -r requirements-testing.txt
   post:
-    - yarn global --cache-folder ${HOME}/.yarn/cache add aglio --prefix ${HOME}/.yarn
+    - yarn global --cache-folder ~/.yarn/cache add aglio --prefix ~/.yarn
   cache_directories:
-    - ${HOME}/.yarn
+    - ~/.yarn
 
 test:
   override:

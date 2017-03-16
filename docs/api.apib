@@ -484,7 +484,47 @@ Returns the avatar set by `PUT /user`
 
 ### Get Avatar [GET]
 
++ Request 200
+
 + Response 200 (image/png)
+
+    + Headers
+
+        Etag: "<md5 hash of the image>"
+	Last-Modified: <date the avatar was last modified>
+
+    + Body
+
+        <binary data>
+
++ Request 200
+
+    + Headers
+
+        If-None-Match: <Etag of cached image>
+	If-Modified-Since: <Last-Modified of cached image>
+
++ Response 200 (image/png)
+
+    Returned if there there is a newer version of the image
+
+    + Headers
+
+        Etag: "<md5 hash of the image>"
+	Last-Modified: "<date the avatar was last modified>"
+
+    + Body
+
+        <binary data>
+
++ Response 304 (image/png)
+
+    Returned if the cached image matches the existing image
+
+    + Headers
+
+        Etag: "<md5 hash of the image>"
+	Last-Modified: "<date the avatar was last modified>"
 
 
 # Group Usage Notes
