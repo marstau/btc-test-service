@@ -1,5 +1,6 @@
 import mimetypes
 import blockies
+import piexif
 from io import BytesIO
 
 from uuid import uuid4
@@ -7,9 +8,12 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
+from tokenid.handlers import EXIF_ORIENTATION
 from asyncbb.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
 from ethutils import data_decoder
+
+from PIL import Image
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -57,7 +61,8 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
 
         boundary = uuid4().hex
         headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
-        files = [('image.png', blockies.create(TEST_PAYMENT_ADDRESS, size=8, scale=12, format='PNG'))]
+        png = blockies.create(TEST_PAYMENT_ADDRESS, size=8, scale=12, format='PNG')
+        files = [('image.png', png)]
         body = body_producer(boundary, files)
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
@@ -77,42 +82,66 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
         self.assertResponseCodeEqual(resp, 200)
-        self.assertEqual(resp.body, files[0][1])
+        # easy to test png, it doesn't change so easily when "double" saved
+        self.assertEqual(resp.body, png)
         self.assertIn('Etag', resp.headers)
         last_etag = resp.headers['Etag']
         self.assertIn('Last-Modified', resp.headers)
         last_modified = resp.headers['Last-Modified']
 
-        # try update
-        files = [('image.png', blockies.create(TEST_ADDRESS_2, size=8, scale=12, format='PNG'))]
+        # try update with jpeg
+        jpeg = blockies.create(TEST_ADDRESS_2, size=8, scale=12, format='JPEG')
+        # rotate jpeg
+        # TODO: figure out if there's actually a way to test that
+        # this is working as expected
+        jpeg = Image.open(BytesIO(jpeg)).rotate(90)
+        stream = BytesIO()
+        # generate exif info for rotation
+        exif_dict = {"0th": {
+            piexif.ImageIFD.XResolution: (jpeg.size[0], 1),
+            piexif.ImageIFD.YResolution: (jpeg.size[1], 1),
+            piexif.ImageIFD.Orientation: 8
+        }}
+        jpeg.save(stream, format="JPEG", exif=piexif.dump(exif_dict))
+        jpeg = stream.getbuffer().tobytes()
+        files = [('image.jpg', jpeg)]
         body = body_producer(boundary, files)
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
                                        body=body, headers=headers)
         self.assertResponseCodeEqual(resp, 200)
 
-        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET", headers={
+        resp = await self.fetch("/avatar/{}.jpg".format(TEST_ADDRESS), method="GET", headers={
             'If-None-Match': last_etag,
             'If-Modified-Since': last_modified
         })
         self.assertResponseCodeEqual(resp, 200)
-        self.assertEqual(resp.body, files[0][1])
+        # it's impossible to compare the jpegs after being saved a 2nd time
+        # so i simply make sure the value isn't the same as the png
+        self.assertNotEqual(resp.body, png)
 
         # check for 304 when trying with new values
+        resp304 = await self.fetch("/avatar/{}.jpg".format(TEST_ADDRESS), method="GET", headers={
+            'If-None-Match': resp.headers['Etag'],
+            'If-Modified-Since': resp.headers['Last-Modified']
+        })
+        self.assertResponseCodeEqual(resp304, 304)
+
+        # check that avatar stays after other update
+        presp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                        body={
+                                            "username": "James123",
+                                            "name": "Jamie"
+                                        })
+        self.assertResponseCodeEqual(presp, 200)
+        data = json_decode(presp.body)
+        self.assertTrue(data['avatar'].endswith("/avatar/{}.jpg".format(TEST_ADDRESS)))
+
+        # make sure png 404's now
         resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET", headers={
             'If-None-Match': resp.headers['Etag'],
             'If-Modified-Since': resp.headers['Last-Modified']
         })
-        self.assertResponseCodeEqual(resp, 304)
-
-        # check that avatar stays after other update
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
-                                       body={
-                                           "username": "James123",
-                                           "name": "Jamie"
-                                       })
-        self.assertResponseCodeEqual(resp, 200)
-        data = json_decode(resp.body)
-        self.assertTrue(data['avatar'].endswith("/avatar/{}.png".format(TEST_ADDRESS)))
+        self.assertResponseCodeEqual(resp, 404)
 
     @gen_test
     @requires_database

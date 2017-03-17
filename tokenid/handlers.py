@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import regex
 import io
 import blockies
@@ -15,7 +16,11 @@ from decimal import Decimal
 from tokenservices.handlers import RequestVerificationMixin
 from tornado.web import HTTPError
 from tokenbrowser.utils import validate_address, validate_decimal_string, parse_int
-from PIL import Image
+from PIL import Image, ExifTags
+from PIL.JpegImagePlugin import get_sampling
+
+assert ExifTags.TAGS[0x0112] == "Orientation"
+EXIF_ORIENTATION = 0x0112
 
 MIN_AUTOID_LENGTH = 5
 
@@ -171,17 +176,56 @@ class UserMixin(RequestVerificationMixin):
         if len(file) != 1:
             raise JSONHTTPError(404, body={'errors': [{'id': 'bad_arguments', 'message': 'Too many files'}]})
         data = file[0]['body']
+        mime_type = file[0]['content_type']
         stream = io.BytesIO(data)
 
         try:
             img = Image.open(stream)
         except OSError:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid image data'}]})
+
+        if mime_type == 'image/jpeg' and img.format == 'JPEG':
+            format = "JPEG"
+            subsampling = 'keep'
+            # check exif information for orientation
+            if hasattr(img, '_getexif'):
+                x = img._getexif()
+                if x and EXIF_ORIENTATION in x and x[EXIF_ORIENTATION] > 1 and x[EXIF_ORIENTATION] < 9:
+                    orientation = x[EXIF_ORIENTATION]
+                    subsampling = get_sampling(img)
+                    if orientation == 2:
+                        # Vertical Mirror
+                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                    elif orientation == 3:
+                        # Rotation 180°
+                        img = img.transpose(Image.ROTATE_180)
+                    elif orientation == 4:
+                        # Horizontal Im
+                        img = img.transpose(Image.FLIP_TOP_BOTTOM)
+                    elif orientation == 5:
+                        # Horizontal Im + Rotation 90° CCW
+                        img = img.transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.ROTATE_90)
+                    elif orientation == 6:
+                        # Rotation 270°
+                        img = img.transpose(Image.ROTATE_270)
+                    elif orientation == 7:
+                        # Horizontal Im + Rotation 270°
+                        img = img.transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.ROTATE_270)
+                    elif orientation == 8:
+                        # Rotation 90°
+                        img = img.transpose(Image.ROTATE_90)
+            save_kwargs = {'subsampling': subsampling, 'quality': 85}
+        elif mime_type == 'image/png' and img.format == 'PNG':
+            format = "PNG"
+            save_kwargs = {'icc_profile': img.info.get("icc_profile")}
+        else:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Unsupported image format'}]})
+
         if img.size[0] > 512 or img.size[1] > 512:
             img.thumbnail((512, 512))
 
         stream = io.BytesIO()
-        img.save(stream, format="PNG", optimize=True)
+        img.save(stream, format=format, optimize=True, **save_kwargs)
 
         data = stream.getbuffer().tobytes()
         hasher = hashlib.md5()
@@ -189,11 +233,11 @@ class UserMixin(RequestVerificationMixin):
         cache_hash = hasher.hexdigest()
 
         async with self.db:
-            await self.db.execute("INSERT INTO avatars (token_id, img, hash) VALUES ($1, $2, $3) "
+            await self.db.execute("INSERT INTO avatars (token_id, img, hash, format) VALUES ($1, $2, $3, $4) "
                                   "ON CONFLICT (token_id) DO UPDATE "
-                                  "SET img = EXCLUDED.img, hash = EXCLUDED.hash, last_modified = (now() AT TIME ZONE 'utc')",
-                                  address, data, cache_hash)
-            avatar_url = "/avatar/{}.png".format(address)
+                                  "SET img = EXCLUDED.img, hash = EXCLUDED.hash, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
+                                  address, data, cache_hash, format)
+            avatar_url = "/avatar/{}.{}".format(address, 'jpg' if format == 'JPEG' else 'png')
             await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar_url, address)
             user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
             await self.db.commit()
@@ -451,16 +495,19 @@ class AvatarHandler(DatabaseMixin, SimpleFileHandler):
     async def get(self, address, format, include_body=True):
 
         format = format.upper()
-        if format != 'PNG':
+        if format not in ['PNG', 'JPG', 'JPEG']:
             raise HTTPError(404)
+        if format == 'JPG':
+            format = 'JPEG'
 
         async with self.db:
             row = await self.db.fetchrow("SELECT * FROM avatars WHERE token_id = $1", address)
 
-        if row is None:
+        if row is None or row['format'] != format:
             raise HTTPError(404)
 
-        await self.handle_file_response(row['img'], "image/png", row['hash'], row['last_modified'])
+        await self.handle_file_response(row['img'], "image/{}".format(format.lower()),
+                                        row['hash'], row['last_modified'])
 
 
 class ReputationUpdateHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):

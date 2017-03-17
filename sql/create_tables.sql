@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS avatars (
     token_id VARCHAR PRIMARY KEY,
     img BYTEA,
     hash VARCHAR,
+    format VARCHAR NOT NULL,
     last_modified TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
 );
 
-UPDATE database_version SET version_number = 10;
+UPDATE database_version SET version_number = 11;

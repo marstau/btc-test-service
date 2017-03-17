@@ -1,0 +1,3 @@
+ALTER TABLE avatars ADD COLUMN format VARCHAR;
+UPDATE avatars SET format = 'PNG';
+ALTER TABLE avatars ALTER COLUMN format SET NOT NULL;
