@@ -353,7 +353,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
-    async def test_update_user_payment_address(self):
+    async def test_update_user_single_values(self):
 
         capitalised = 'BobSmith'
 
@@ -361,18 +361,30 @@ class UserHandlerTest(AsyncHandlerTest):
             await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
-            "payment_address": TEST_PAYMENT_ADDRESS
+            "about": "I am neat",
+            "location": "Oslo",
+            "avatar": "https://example.com/blah.png",
+            "name": "JeffBot",
+            "is_app": True,
+            "payment_address": TEST_PAYMENT_ADDRESS,
+            "username": "jeffbot"
         }
 
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+        for key, val in body.items():
+            resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                           body={key: val})
 
-        self.assertResponseCodeEqual(resp, 200, resp.body)
+            self.assertResponseCodeEqual(resp, 200, "failed updating '{}: {}'".format(key, val))
 
-        async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            async with self.pool.acquire() as con:
+                row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
 
-        self.assertIsNotNone(row)
-        self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
+            self.assertIsNotNone(row)
+            self.assertEqual(row[key], val)
+
+        # make sure the final data looks the same as the body
+        for key, val in body.items():
+            self.assertEqual(row[key], val)
 
     @gen_test
     @requires_database

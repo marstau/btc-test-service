@@ -103,7 +103,7 @@ class UserMixin(RequestVerificationMixin):
                 if 'location' in custom:
                     payload['location'] = custom['location']
 
-            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app']):
+            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app', 'location']):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
             if 'username' in payload and user['username'] != payload['username']:
@@ -138,19 +138,19 @@ class UserMixin(RequestVerificationMixin):
 
             if 'avatar' in payload and payload['avatar'] != user['avatar']:
                 avatar = payload['avatar']
-                if not isinstance(name, str):
+                if not isinstance(avatar, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Avatar'}]})
                 await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar, address)
 
             if 'about' in payload and payload['about'] != user['about']:
                 about = payload['about']
-                if not isinstance(name, str):
+                if not isinstance(about, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid About'}]})
                 await self.db.execute("UPDATE users SET about = $1 WHERE token_id = $2", about, address)
 
             if 'location' in payload and payload['location'] != user['location']:
                 location = payload['location']
-                if not isinstance(name, str):
+                if not isinstance(location, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Location'}]})
                 await self.db.execute("UPDATE users SET location = $1 WHERE token_id = $2", location, address)
 
@@ -313,7 +313,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         if 'about' in payload:
             about = payload['about']
-            if not isinstance(name, str):
+            if not isinstance(about, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
             about = None
