@@ -82,7 +82,10 @@ class UserMixin(RequestVerificationMixin):
 
     async def update_user(self, address):
 
-        payload = self.json
+        try:
+            payload = self.json
+        except:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Error decoding data. Expected JSON content'}]})
 
         async with self.db:
 
