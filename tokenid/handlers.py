@@ -12,6 +12,7 @@ import hashlib
 from asyncbb.handlers import BaseHandler
 from asyncbb.database import DatabaseMixin
 from asyncbb.errors import JSONHTTPError
+from tokenservices.log import log
 from decimal import Decimal
 from tokenservices.handlers import RequestVerificationMixin
 from tornado.web import HTTPError
@@ -340,8 +341,11 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         self.write(user_row_for_json(self.request, user))
 
     def put(self):
-
         address = self.verify_request()
+
+        if self.request.headers['Content-Type'] != 'application/json' and not self.request.files:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Expected application/json or multipart/form-data'}]})
+
         if self.request.files:
             return self.update_user_avatar(address)
         else:

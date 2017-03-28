@@ -169,3 +169,30 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
         self.assertResponseCodeEqual(resp, 404)
+
+    @gen_test
+    @requires_database
+    async def test_send_bad_filename(self):
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        boundary = uuid4().hex
+        headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
+        files = [('', bytes([0] * 1024))]
+        body = body_producer(boundary, files)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                       body=body, headers=headers)
+
+        self.assertResponseCodeEqual(resp, 400)
+
+        async with self.pool.acquire() as con:
+            arow = await con.fetchrow("SELECT * FROM avatars WHERE token_id = $1", TEST_ADDRESS)
+
+        self.assertIsNone(arow)
+
+        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
+        self.assertResponseCodeEqual(resp, 404)
