@@ -353,6 +353,33 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    async def test_update_user_duplicate_username(self):
+
+        username_a = 'userA'
+        username_b = 'userB'
+        username_b_lower = 'userb'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username_a, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username_b, TEST_ADDRESS_2)
+
+        for new_username in [username_b, username_b_lower]:
+            body = {
+                "username": new_username
+            }
+
+            resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
+
+            self.assertResponseCodeEqual(resp, 400)
+
+            async with self.pool.acquire() as con:
+                row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+
+            self.assertIsNotNone(row)
+            self.assertEqual(row['username'], username_a)
+
+    @gen_test
+    @requires_database
     async def test_update_user_single_values(self):
 
         capitalised = 'BobSmith'

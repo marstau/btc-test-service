@@ -116,7 +116,7 @@ class UserMixin(RequestVerificationMixin):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
                 # make sure the username isn't used by a different user
-                row = await self.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
+                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
                 if row is not None:
                     raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
