@@ -1,6 +1,1 @@
-#PYTHON3
-blockies==0.0.1
 -e git+ssh://git@github.com/tokenbrowser/token-services-lib.git#egg=token-services
-asyncpg==0.9.0
-Pillow==4.0.0
-regex

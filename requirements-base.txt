@@ -1,0 +1,5 @@
+#PYTHON3
+blockies==0.0.1
+asyncpg==0.9.0
+Pillow==4.0.0
+regex

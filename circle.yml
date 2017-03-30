@@ -5,10 +5,12 @@ machine:
     version: 6.7.0
   environment:
     PATH: "${PATH}:~/.yarn/bin"
+    STAGE: $CIRCLE_BRANCH
 
 dependencies:
   pre:
     - pip install -r requirements-testing.txt
+    - ./configure_environment.sh
   post:
     - pip install --upgrade -e git+ssh://git@github.com/tokenbrowser/token-services-lib.git@$CIRCLE_BRANCH#egg=token-services || true
     - yarn global --cache-folder ~/.yarn/cache add aglio --prefix ~/.yarn
