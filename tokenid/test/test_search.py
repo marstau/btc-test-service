@@ -5,8 +5,8 @@ from tornado.testing import gen_test
 
 from tokenid.app import urls
 from tokenservices.test.base import AsyncHandlerTest
-from asyncbb.test.database import requires_database
-from ethutils import data_encoder, private_key_to_address
+from tokenservices.test.database import requires_database
+from tokenservices.ethereum.utils import data_encoder, private_key_to_address
 
 from urllib.parse import quote_plus
 

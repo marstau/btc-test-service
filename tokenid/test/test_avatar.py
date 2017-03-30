@@ -9,9 +9,9 @@ from tornado.testing import gen_test
 
 from tokenid.app import urls
 from tokenid.handlers import EXIF_ORIENTATION
-from asyncbb.test.database import requires_database
+from tokenservices.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
-from ethutils import data_decoder
+from tokenservices.ethereum.utils import data_decoder
 
 from PIL import Image
 

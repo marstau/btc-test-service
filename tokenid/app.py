@@ -1,4 +1,4 @@
-import asyncbb.web
+import tokenservices.web
 import os
 from . import handlers
 from . import login
@@ -22,7 +22,7 @@ urls = [
     (r"^/v1/reputation/?$", handlers.ReputationUpdateHandler)
 ]
 
-class Application(asyncbb.web.Application):
+class Application(tokenservices.web.Application):
 
     def process_config(self):
         config = super(Application, self).process_config()

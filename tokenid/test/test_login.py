@@ -2,7 +2,7 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
-from asyncbb.test.database import requires_database
+from tokenservices.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
 
 from tokenid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS, TEST_ADDRESS_2

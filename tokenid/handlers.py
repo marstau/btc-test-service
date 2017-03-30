@@ -9,14 +9,13 @@ import string
 import datetime
 import hashlib
 
-from asyncbb.handlers import BaseHandler
-from asyncbb.database import DatabaseMixin
-from asyncbb.errors import JSONHTTPError
+from tokenservices.database import DatabaseMixin
+from tokenservices.errors import JSONHTTPError
 from tokenservices.log import log
 from decimal import Decimal
-from tokenservices.handlers import RequestVerificationMixin
+from tokenservices.handlers import BaseHandler, RequestVerificationMixin
 from tornado.web import HTTPError
-from tokenbrowser.utils import validate_address, validate_decimal_string, parse_int
+from tokenservices.utils import validate_address, validate_decimal_string, parse_int
 from PIL import Image, ExifTags
 from PIL.JpegImagePlugin import get_sampling
 
