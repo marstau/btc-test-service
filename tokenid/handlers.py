@@ -418,29 +418,49 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         query = self.get_query_argument('query', None)
         apps = parse_boolean(self.get_query_argument('apps', None))
+        payment_address = self.get_query_argument('payment_address', None)
+        if payment_address and not validate_address(payment_address):
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
 
         if query is None:
-            results = []
+            if payment_address:
+                async with self.db:
+                    rows = await self.db.fetch(
+                        "SELECT * FROM users WHERE payment_address = $3 "
+                        "ORDER BY payment_address, name, username "
+                        "OFFSET $1 LIMIT $2",
+                        offset, limit, payment_address)
+                results = [user_row_for_json(self.request, row) for row in rows]
+            else:
+                results = []
         else:
             # strip punctuation
             query = ''.join([c for c in query if c not in string.punctuation])
             # split words and add in partial matching flags
             query = '|'.join(['{}:*'.format(word) for word in query.split(' ') if word])
             args = [offset, limit, query]
+            where_q = []
+            if payment_address:
+                where_q.append("payment_address = ${}".format(len(args) + 1))
+                args.append(payment_address)
+            if apps is not None:
+                where_q.append("is_app = ${}".format(len(args) + 1))
+                args.append(apps)
+            where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
             sql = ("SELECT * FROM "
                    "(SELECT * FROM users, TO_TSQUERY($3) AS q "
                    "WHERE (tsv @@ q){}) AS t1 "
                    "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, username "
                    "OFFSET $1 LIMIT $2"
-                   .format(" AND is_app = $4" if apps is not None else ""))
-            if apps is not None:
-                args.append(apps)
+                   .format(where_q))
             async with self.db:
                 rows = await self.db.fetch(sql, *args)
             results = [user_row_for_json(self.request, row) for row in rows]
         querystring = 'query={}'.format(query)
         if apps is not None:
             querystring += '&apps={}'.format('true' if apps else 'false')
+        if payment_address:
+            querystring += '&payment_address={}'.format(payment_address)
 
         self.write({
             'query': querystring,

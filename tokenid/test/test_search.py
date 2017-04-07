@@ -226,3 +226,38 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         # make sure that name is prefered over username
         self.assertEqual(results[0]['name'], "Bob Smith")
         self.assertTrue(results[1]['username'].startswith("bob"))
+
+    @gen_test
+    @requires_database
+    async def test_payment_address_search(self):
+
+        username = "user231"
+        name = "Bobby"
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id, name, payment_address) VALUES ($1, $2, $3, $4)",
+                              username, TEST_ADDRESS, name, TEST_PAYMENT_ADDRESS)
+
+        # test simple lookup
+        resp = await self.fetch("/search/user?payment_address={}".format(TEST_PAYMENT_ADDRESS), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+        # test query + payment address
+        resp = await self.fetch("/search/user?query={}&payment_address={}".format("user", TEST_PAYMENT_ADDRESS), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+        # test no matches
+        resp = await self.fetch("/search/user?payment_address={}".format(TEST_ADDRESS), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
+
+        # test no matches due to name query failing
+        resp = await self.fetch("/search/user?query={}&payment_address={}".format("nomatch", TEST_PAYMENT_ADDRESS), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)

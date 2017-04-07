@@ -376,8 +376,9 @@ Used to retrieve a current timestamp from the server for use in signing other re
 ## User [/v1/search/user/{?query,offset,limit,apps}]
 ### Search by partial username [GET]
 + Parameters
-    + query: `moxiemarl` (string, required) - Partial username to match on
-      Matches on usernames using Postgres LIKE operator
+    + query: `moxiemarl` (string, optional) - Partial username to match on
+      Matches on usernames
+    + payment_address: `0x056db290f8ba3250ca64a45d16284d04bc6f5fbf` (string, optional) - Returns users with a payment address matching the requested address
     + apps: `true` (boolean, optional) - If present, will filter on `is_app` flag either returning only users (if `false`) or apps (if `true`).
     + offset: `80` (integer, optional) - Paging offset
       + Default: `0`
