@@ -78,6 +78,63 @@ def parse_boolean(b):
         return bool(b)
     return None
 
+def process_image(data, mime_type):
+    stream = io.BytesIO(data)
+    try:
+        img = Image.open(stream)
+    except OSError:
+        raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid image data'}]})
+
+    if mime_type == 'image/jpeg' and img.format == 'JPEG':
+        format = "JPEG"
+        subsampling = 'keep'
+        # check exif information for orientation
+        if hasattr(img, '_getexif'):
+            x = img._getexif()
+            if x and EXIF_ORIENTATION in x and x[EXIF_ORIENTATION] > 1 and x[EXIF_ORIENTATION] < 9:
+                orientation = x[EXIF_ORIENTATION]
+                subsampling = get_sampling(img)
+                if orientation == 2:
+                    # Vertical Mirror
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation == 3:
+                    # Rotation 180°
+                    img = img.transpose(Image.ROTATE_180)
+                elif orientation == 4:
+                    # Horizontal Im
+                    img = img.transpose(Image.FLIP_TOP_BOTTOM)
+                elif orientation == 5:
+                    # Horizontal Im + Rotation 90° CCW
+                    img = img.transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.ROTATE_90)
+                elif orientation == 6:
+                    # Rotation 270°
+                    img = img.transpose(Image.ROTATE_270)
+                elif orientation == 7:
+                    # Horizontal Im + Rotation 270°
+                    img = img.transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.ROTATE_270)
+                elif orientation == 8:
+                    # Rotation 90°
+                    img = img.transpose(Image.ROTATE_90)
+        save_kwargs = {'subsampling': subsampling, 'quality': 85}
+    elif mime_type == 'image/png' and img.format == 'PNG':
+        format = "PNG"
+        save_kwargs = {'icc_profile': img.info.get("icc_profile")}
+    else:
+        raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Unsupported image format'}]})
+
+    if img.size[0] > 512 or img.size[1] > 512:
+        img.thumbnail((512, 512))
+
+    stream = io.BytesIO()
+    img.save(stream, format=format, optimize=True, **save_kwargs)
+
+    data = stream.getbuffer().tobytes()
+    hasher = hashlib.md5()
+    hasher.update(data)
+    cache_hash = hasher.hexdigest()
+
+    return data, cache_hash, format
+
 class UserMixin(RequestVerificationMixin):
 
     async def update_user(self, address):
@@ -180,60 +237,8 @@ class UserMixin(RequestVerificationMixin):
             raise JSONHTTPError(404, body={'errors': [{'id': 'bad_arguments', 'message': 'Too many files'}]})
         data = file[0]['body']
         mime_type = file[0]['content_type']
-        stream = io.BytesIO(data)
 
-        try:
-            img = Image.open(stream)
-        except OSError:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid image data'}]})
-
-        if mime_type == 'image/jpeg' and img.format == 'JPEG':
-            format = "JPEG"
-            subsampling = 'keep'
-            # check exif information for orientation
-            if hasattr(img, '_getexif'):
-                x = img._getexif()
-                if x and EXIF_ORIENTATION in x and x[EXIF_ORIENTATION] > 1 and x[EXIF_ORIENTATION] < 9:
-                    orientation = x[EXIF_ORIENTATION]
-                    subsampling = get_sampling(img)
-                    if orientation == 2:
-                        # Vertical Mirror
-                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                    elif orientation == 3:
-                        # Rotation 180°
-                        img = img.transpose(Image.ROTATE_180)
-                    elif orientation == 4:
-                        # Horizontal Im
-                        img = img.transpose(Image.FLIP_TOP_BOTTOM)
-                    elif orientation == 5:
-                        # Horizontal Im + Rotation 90° CCW
-                        img = img.transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.ROTATE_90)
-                    elif orientation == 6:
-                        # Rotation 270°
-                        img = img.transpose(Image.ROTATE_270)
-                    elif orientation == 7:
-                        # Horizontal Im + Rotation 270°
-                        img = img.transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.ROTATE_270)
-                    elif orientation == 8:
-                        # Rotation 90°
-                        img = img.transpose(Image.ROTATE_90)
-            save_kwargs = {'subsampling': subsampling, 'quality': 85}
-        elif mime_type == 'image/png' and img.format == 'PNG':
-            format = "PNG"
-            save_kwargs = {'icc_profile': img.info.get("icc_profile")}
-        else:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Unsupported image format'}]})
-
-        if img.size[0] > 512 or img.size[1] > 512:
-            img.thumbnail((512, 512))
-
-        stream = io.BytesIO()
-        img.save(stream, format=format, optimize=True, **save_kwargs)
-
-        data = stream.getbuffer().tobytes()
-        hasher = hashlib.md5()
-        hasher.update(data)
-        cache_hash = hasher.hexdigest()
+        data, cache_hash, format = await self.run_in_executor(process_image, data, mime_type)
 
         async with self.db:
             await self.db.execute("INSERT INTO avatars (token_id, img, hash, format) VALUES ($1, $2, $3, $4) "
@@ -477,7 +482,7 @@ class IdenticonHandler(SimpleFileHandler):
 
     FORMAT_MAP = {
         'PNG': 'image/png',
-        'JPG': 'image/jpeg'
+        'JPEG': 'image/jpeg'
     }
 
     def head(self, address, format):
@@ -485,6 +490,8 @@ class IdenticonHandler(SimpleFileHandler):
 
     async def get(self, address, format, include_body=True):
         format = format.upper()
+        if format == 'JPG':
+            format = 'JPEG'
         if format not in self.FORMAT_MAP.keys():
             raise HTTPError(404)
         data = blockies.create(address, size=8, scale=12, format=format.upper())

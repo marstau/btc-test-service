@@ -1,11 +1,16 @@
+import asyncio
+import unittest
 import mimetypes
 import blockies
 import piexif
+import os
 from io import BytesIO
 
 from uuid import uuid4
 from tornado.escape import json_decode
 from tornado.testing import gen_test
+from tornado.platform.asyncio import to_asyncio_future
+from tornado.ioloop import IOLoop
 
 from tokenid.app import urls
 from tokenid.handlers import EXIF_ORIENTATION
@@ -196,3 +201,46 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
         self.assertResponseCodeEqual(resp, 404)
+
+    @unittest.skip("test uses too much memory to run on circleci")
+    @gen_test(timeout=300)
+    @requires_database
+    async def test_send_large_file(self):
+        """Tests uploading a large avatar and makes sure it doesn't block
+        other processes"""
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        # saves a generated file in the /tmp dir to speed up
+        # multiple runs of the same test
+        tmpfile = "/tmp/token-testing-large-file-test-2390.jpg"
+        if os.path.exists(tmpfile):
+            jpeg = open(tmpfile, 'rb').read()
+        else:
+            # generates a file just under 100mb (100mb being the max size upload supported)
+            jpeg = blockies.create(TEST_ADDRESS_2, size=2390, scale=12, format='JPEG')
+            with open(tmpfile, 'wb') as f:
+                f.write(jpeg)
+        print("size: {} MB".format(len(jpeg) / 1024 / 1024))
+        boundary = uuid4().hex
+        headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
+        files = [('avatar.jpg', jpeg)]
+        body = body_producer(boundary, files)
+
+        f1 = self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                               body=body, headers=headers)
+        # make sure the avatar upload has begun
+        await asyncio.sleep(1)
+        f2 = self.fetch("/v1/user/{}".format(TEST_ADDRESS), method="GET")
+        def f1done(r):
+            assert f2.done()
+        def f2done(r):
+            assert not f1.done()
+        loop = IOLoop.current()
+        loop.add_future(f1, f1done)
+        loop.add_future(f2, f2done)
+
+        await asyncio.wait([to_asyncio_future(f) for f in [f1, f2]], timeout=5)
