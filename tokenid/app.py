@@ -16,7 +16,7 @@ urls = [
     (r"^/v1/user/(?P<username>[^/]+)/?$", handlers.UserHandler),
     (r"^/v1/search/user/?$", handlers.SearchUserHandler),
     # app endpoints
-    (r"^/v1/apps/(?P<username>0x[a-fA-F0-9]{40})/?$", handlers.UserHandler),
+    (r"^/v1/apps/(?P<username>0x[a-fA-F0-9]{40})/?$", handlers.UserHandler, {'apps_only': True}),
     (r"^/v1/(?:search/)?apps(?:/(featured))?/?$", handlers.SearchAppsHandler),
 
     # avatar endpoints

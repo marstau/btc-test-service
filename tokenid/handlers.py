@@ -357,21 +357,33 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
 class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
+    def __init__(self, *args, apps_only=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.apps_only = apps_only
+
     async def get(self, username):
 
         # check if ethereum address is given
         if regex.match('^0x[a-fA-F0-9]{40}$', username):
 
-            async with self.db:
-                row = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", username)
+            sql = "SELECT * FROM users WHERE token_id = $1"
+            args = [username]
 
         # otherwise verify that username is valid
         elif not regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
         else:
-            async with self.db:
-                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
+
+            sql = "SELECT * FROM users WHERE lower(username) = lower($1)"
+            args = [username]
+
+        if self.apps_only:
+            sql += " AND is_app = $2 AND blocked = $3"
+            args.extend([True, False])
+
+        async with self.db:
+            row = await self.db.fetchrow(sql, *args)
 
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
@@ -506,6 +518,8 @@ class SearchAppsHandler(UserMixin, DatabaseMixin, BaseHandler):
                 args.append(True)
             where_q.append("blocked = ${}".format(len(args) + 1))
             args.append(False)
+            where_q.append("is_app = ${}".format(len(args) + 1))
+            args.append(True)
             order_by.extend(['name', 'username'])
             async with self.db:
                 sql = ("SELECT * FROM users WHERE {} "
@@ -532,6 +546,8 @@ class SearchAppsHandler(UserMixin, DatabaseMixin, BaseHandler):
             args.append(True)
             where_q.append("blocked = ${}".format(len(args) + 1))
             args.append(False)
+            where_q.append("is_app = ${}".format(len(args) + 1))
+            args.append(True)
             where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
             sql = ("SELECT * FROM "
                    "(SELECT * FROM users, TO_TSQUERY($3) AS q "

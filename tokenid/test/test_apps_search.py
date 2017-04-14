@@ -25,17 +25,20 @@ class AppsHandlerTest(AsyncHandlerTest):
         self.assertEqual(len(body['results']), 0)
 
         setup_data = [
-            ("TokenBotA", TEST_ADDRESS[:-1] + 'f', False),
-            ("TokenBotB", TEST_ADDRESS[:-1] + 'e', False),
-            ("FeaturedBotA", TEST_ADDRESS[:-1] + 'd', True),
-            ("FeaturedBotB", TEST_ADDRESS[:-1] + 'c', True),
-            ("FeaturedBotC", TEST_ADDRESS[:-1] + 'b', True)
+            ("TokenBotA", TEST_ADDRESS[:-1] + 'f', False, True),
+            ("TokenBotB", TEST_ADDRESS[:-1] + 'e', False, True),
+            ("FeaturedBotA", TEST_ADDRESS[:-1] + 'd', True, True),
+            ("FeaturedBotB", TEST_ADDRESS[:-1] + 'c', True, True),
+            ("FeaturedBotC", TEST_ADDRESS[:-1] + 'b', True, True),
+            ("NormalUser1", TEST_ADDRESS[:-2] + '00', False, False),
+            ("NormalUser2", TEST_ADDRESS[:-2] + '01', False, False),
+            ("NormalUser3", TEST_ADDRESS[:-2] + '02', False, False),
         ]
 
-        for username, addr, featured in setup_data:
+        for username, addr, featured, is_app in setup_data:
             async with self.pool.acquire() as con:
                 await con.execute("INSERT INTO users (username, name, token_id, is_app, featured) VALUES ($1, $2, $3, $4, $5)",
-                                  username, username, addr, True, featured)
+                                  username, username, addr, is_app, featured)
 
         resp = await self.fetch("/apps", method="GET")
         self.assertResponseCodeEqual(resp, 200)
