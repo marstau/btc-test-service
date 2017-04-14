@@ -15,6 +15,11 @@ urls = [
     (r"^/v1/user/?$", handlers.UserCreationHandler),
     (r"^/v1/user/(?P<username>[^/]+)/?$", handlers.UserHandler),
     (r"^/v1/search/user/?$", handlers.SearchUserHandler),
+    # app endpoints
+    (r"^/v1/apps/(?P<username>0x[a-fA-F0-9]{40})/?$", handlers.UserHandler),
+    (r"^/v1/(?:search/)?apps(?:/(featured))?/?$", handlers.SearchAppsHandler),
+
+    # avatar endpoints
     (r"^/identicon/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.IdenticonHandler),
     (r"^/avatar/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.AvatarHandler),
 

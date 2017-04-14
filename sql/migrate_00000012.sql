@@ -1,0 +1,2 @@
+ALTER TABLE users ADD column featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD column blocked BOOLEAN DEFAULT FALSE;

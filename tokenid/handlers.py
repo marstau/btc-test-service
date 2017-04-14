@@ -469,6 +469,91 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
             'results': results
         })
 
+class SearchAppsHandler(UserMixin, DatabaseMixin, BaseHandler):
+
+    async def get(self, force_featured=None):
+
+        try:
+            offset = int(self.get_query_argument('offset', 0))
+            limit = int(self.get_query_argument('limit', 10))
+        except ValueError:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+
+        query = self.get_query_argument('query', None)
+        payment_address = self.get_query_argument('payment_address', None)
+        if payment_address and not validate_address(payment_address):
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
+
+        if force_featured:
+            featured = True
+        else:
+            featured = self.get_query_argument('featured', 'false')
+            if featured.lower() == 'false':
+                featured = False
+            else:
+                featured = True
+
+        if query is None:
+            where_q = []
+            order_by = []
+            args = [offset, limit]
+            if payment_address:
+                where_q.append("payment_address = ${}".format(len(args) + 1))
+                args.append(payment_address)
+                order_by.append(payment_address)
+            if featured:
+                where_q.append("featured = ${}".format(len(args) + 1))
+                args.append(True)
+            where_q.append("blocked = ${}".format(len(args) + 1))
+            args.append(False)
+            order_by.extend(['name', 'username'])
+            async with self.db:
+                sql = ("SELECT * FROM users WHERE {} "
+                       "ORDER BY {} "
+                       "OFFSET $1 LIMIT $2".format(" AND ".join(where_q), ", ".join(order_by)))
+                rows = await self.db.fetch(
+                    sql,
+                    *args)
+            results = [user_row_for_json(self.request, row) for row in rows]
+        else:
+            # strip punctuation
+            query = ''.join([c for c in query if c not in string.punctuation])
+            # split words and add in partial matching flags
+            query = '|'.join(['{}:*'.format(word) for word in query.split(' ') if word])
+            args = [offset, limit, query]
+            where_q = []
+            if payment_address:
+                where_q.append("payment_address = ${}".format(len(args) + 1))
+                args.append(payment_address)
+            if featured:
+                where_q.append("featured = ${}".format(len(args) + 1))
+                args.append(True)
+            where_q.append("is_app = ${}".format(len(args) + 1))
+            args.append(True)
+            where_q.append("blocked = ${}".format(len(args) + 1))
+            args.append(False)
+            where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
+            sql = ("SELECT * FROM "
+                   "(SELECT * FROM users, TO_TSQUERY($3) AS q "
+                   "WHERE (tsv @@ q){}) AS t1 "
+                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, username "
+                   "OFFSET $1 LIMIT $2"
+                   .format(where_q))
+            async with self.db:
+                rows = await self.db.fetch(sql, *args)
+            results = [user_row_for_json(self.request, row) for row in rows]
+        querystring = 'query={}'.format(query)
+        if payment_address:
+            querystring += '&payment_address={}'.format(payment_address)
+
+        self.write({
+            'query': querystring,
+            'offset': offset,
+            'limit': limit,
+            'results': results
+        })
+
+
 class SimpleFileHandler(BaseHandler):
     async def handle_file_response(self, data, content_type, etag,
                                    last_modified, include_body=True):
