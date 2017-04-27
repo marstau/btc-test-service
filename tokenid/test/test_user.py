@@ -15,7 +15,7 @@ TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
 TEST_PAYMENT_ADDRESS = "0x444433335555ffffaaaa222211119999ffff7777"
 
-TEST_ADDRESS_2 = "0x056db290f8ba3250ca64a45d16284d04bc000000"
+TEST_ADDRESS_2 = "0x7f0294b53af29ded2b5fa04b6225a1bc334a41e6"
 
 
 class UserHandlerTest(AsyncHandlerTest):
@@ -29,7 +29,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     async def test_generate_username_length(self):
-        for n in [0,5]:
+        for n in [0, 5]:
             id = generate_username(n).split('user')[1]
             self.assertEqual(len(id), n)
 
@@ -238,9 +238,9 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_fake_signature(self):
 
         resp = await self.fetch_signed("/user", method="POST",
-                                signature="this is not a real signature!",
-                                timestamp=int(time.time()),
-                                address=TEST_ADDRESS)
+                                       signature="this is not a real signature!",
+                                       timestamp=int(time.time()),
+                                       address=TEST_ADDRESS)
 
         self.assertResponseCodeEqual(resp, 400)
 
@@ -254,8 +254,8 @@ class UserHandlerTest(AsyncHandlerTest):
         address = "{}00000".format(TEST_ADDRESS[:-5])
 
         resp = await self.fetch_signed("/user", method="POST",
-                                timestamp=timestamp, address=address, signature=signature,
-                                body=body)
+                                       timestamp=timestamp, address=address, signature=signature,
+                                       body=body)
 
         self.assertResponseCodeEqual(resp, 400, resp.body)
 

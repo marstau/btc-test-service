@@ -8,6 +8,7 @@ import email.utils
 import string
 import datetime
 import hashlib
+import uuid
 
 from tokenservices.database import DatabaseMixin
 from tokenservices.errors import JSONHTTPError
@@ -33,6 +34,9 @@ def generate_username(autoid_length):
 
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
+
+def validate_migration_key(key):
+    return isinstance(key, str) and regex.match('^([0-9a-fA-F]+)$', key)
 
 def user_row_for_json(request, row):
     rval = {
@@ -137,7 +141,7 @@ def process_image(data, mime_type):
 
 class UserMixin(RequestVerificationMixin):
 
-    async def update_user(self, address):
+    async def update_user(self, token_id):
 
         try:
             payload = self.json
@@ -146,11 +150,62 @@ class UserMixin(RequestVerificationMixin):
 
         async with self.db:
 
-            # make sure a user with the given address exists
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+            # make sure a user with the given token_id exists
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
+            if 'token_id' in payload:
+                # begin migration
+                token_id_new = payload['token_id']
+                # make sure the new token_id doesn't exist
+                existing = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id_new)
+                if existing:
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided token id address is already registered'}]})
+                # check if there are already a migration keys for the original token_id
+                keys = await self.db.fetch("SELECT * FROM migrations WHERE token_id_orig = $1", token_id)
+                now = datetime.datetime.utcnow()
+                migration_key = None
+                aborted_migrations = set()
+                for key in keys:
+                    if not key['complete']:
+                        if key['date'] + datetime.timedelta(hours=24) > now:
+                            if key['token_id_new'] == token_id_new:
+                                migration_key = key['migration_key']
+                                continue
+                            # prevent spamming the endpoint
+                            print(key['date'] + datetime.timedelta(seconds=30), now)
+                            if key['date'] + datetime.timedelta(seconds=30) > now:
+                                raise JSONHTTPError(429, body={'errors': [
+                                    {'id': 'too_many_requests',
+                                     'message': 'Wait some time before trying again'}]})
+                        aborted_migrations.add(key['migration_key'])
+                    else:
+                        # make sure the migration wasn't done too recently
+                        if key['date'] + datetime.timedelta(hours=24) > now:
+                            raise JSONHTTPError(400, body={'errors': [
+                                {'id': 'invalid_migration',
+                                 'message': 'Cannot migrate more than once in a 24 hour period'}]})
+                # check if the original token_id was migrated recently
+                key = await self.db.fetchrow("SELECT * FROM migrations "
+                                             "WHERE token_id_new = $1 AND complete = true "
+                                             "ORDER BY date DESC", token_id)
+                if key is not None and key['date'] + datetime.timedelta(hours=24) > now:
+                    raise JSONHTTPError(400, body={'errors': [
+                        {'id': 'invalid_migration',
+                         'message': 'Cannot migrate more than once in a 24 hour period'}]})
+                for key in aborted_migrations:
+                    await self.db.execute("DELETE FROM migrations where migration_key = $1", key)
+                if migration_key is None:
+                    migration_key = uuid.uuid4().hex
+                    # add new entry
+                    await self.db.execute(
+                        "INSERT INTO migrations (migration_key, token_id_orig, token_id_new) "
+                        "VALUES ($1, $2, $3)",
+                        migration_key, token_id, token_id_new)
+                await self.db.commit()
+                self.write({'migration_key': migration_key})
+                return
             # backwards compat
             if 'custom' in payload:
                 custom = payload.pop('custom')
@@ -176,54 +231,54 @@ class UserMixin(RequestVerificationMixin):
                 if row is not None:
                     raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
-                await self.db.execute("UPDATE users SET username = $1 WHERE token_id = $2", username, address)
+                await self.db.execute("UPDATE users SET username = $1 WHERE token_id = $2", username, token_id)
 
             if 'payment_address' in payload and payload['payment_address'] != user['payment_address']:
                 payment_address = payload['payment_address']
                 if not validate_address(payment_address):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
-                await self.db.execute("UPDATE users SET payment_address = $1 WHERE token_id = $2", payment_address, address)
+                await self.db.execute("UPDATE users SET payment_address = $1 WHERE token_id = $2", payment_address, token_id)
 
             if 'is_app' in payload and payload['is_app'] != user['is_app']:
                 is_app = parse_boolean(payload['is_app'])
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-                await self.db.execute("UPDATE users SET is_app = $1 WHERE token_id = $2", is_app, address)
+                await self.db.execute("UPDATE users SET is_app = $1 WHERE token_id = $2", is_app, token_id)
 
             if 'name' in payload and payload['name'] != user['name']:
                 name = payload['name']
                 if not isinstance(name, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Name'}]})
-                await self.db.execute("UPDATE users SET name = $1 WHERE token_id = $2", name, address)
+                await self.db.execute("UPDATE users SET name = $1 WHERE token_id = $2", name, token_id)
 
             if 'avatar' in payload and payload['avatar'] != user['avatar']:
                 avatar = payload['avatar']
                 if not isinstance(avatar, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Avatar'}]})
-                await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar, address)
+                await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar, token_id)
 
             if 'about' in payload and payload['about'] != user['about']:
                 about = payload['about']
                 if not isinstance(about, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid About'}]})
-                await self.db.execute("UPDATE users SET about = $1 WHERE token_id = $2", about, address)
+                await self.db.execute("UPDATE users SET about = $1 WHERE token_id = $2", about, token_id)
 
             if 'location' in payload and payload['location'] != user['location']:
                 location = payload['location']
                 if not isinstance(location, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Location'}]})
-                await self.db.execute("UPDATE users SET location = $1 WHERE token_id = $2", location, address)
+                await self.db.execute("UPDATE users SET location = $1 WHERE token_id = $2", location, token_id)
 
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
 
-    async def update_user_avatar(self, address):
+    async def update_user_avatar(self, token_id):
 
         # make sure a user with the given address exists
         async with self.db:
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
 
         if user is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
@@ -244,10 +299,10 @@ class UserMixin(RequestVerificationMixin):
             await self.db.execute("INSERT INTO avatars (token_id, img, hash, format) VALUES ($1, $2, $3, $4) "
                                   "ON CONFLICT (token_id) DO UPDATE "
                                   "SET img = EXCLUDED.img, hash = EXCLUDED.hash, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
-                                  address, data, cache_hash, format)
-            avatar_url = "/avatar/{}.{}".format(address, 'jpg' if format == 'JPEG' else 'png')
-            await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar_url, address)
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+                                  token_id, data, cache_hash, format)
+            avatar_url = "/avatar/{}.{}".format(token_id, 'jpg' if format == 'JPEG' else 'png')
+            await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar_url, token_id)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
@@ -257,14 +312,34 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
     async def post(self):
 
-        address = self.verify_request()
+        token_id = self.verify_request()
         payload = self.json
 
         # check if the address has already registered a username
         async with self.db:
-            row = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+            row = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
         if row is not None:
             raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided token id address is already registered'}]})
+
+        migrate_from = None
+        if 'migration_key' in payload:
+            migration_key = payload.pop('migration_key')
+            if not validate_migration_key(migration_key):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_migration_key', 'message': 'Invalid Migration Key'}]})
+            async with self.db:
+                migration = await self.db.fetchrow("SELECT * FROM migrations WHERE migration_key = $1", migration_key)
+                # make sure there is a matching migration key and that it's valid for this request
+                if migration is None or \
+                   migration['token_id_new'] != token_id or \
+                   migration['complete'] is True or \
+                   migration['date'] + datetime.timedelta(hours=24) < datetime.datetime.utcnow():
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_migration_key', 'message': 'Invalid Migration Key'}]})
+                # make sure the original user still exists
+                orig_user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1",
+                                                   migration['token_id_orig'])
+                if orig_user is None:
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_migration_key', 'message': 'Invalid Migration Key'}]})
+            migrate_from = migration['token_id_orig']
 
         if 'username' in payload:
 
@@ -273,11 +348,18 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             if not validate_username(username):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
-            # check username doesn't already exist
-            async with self.db:
-                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
-            if row is not None:
-                raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
+            # make sure we're allowed to pass in username with a migrate request
+            if migrate_from is None or orig_user['username'] != username:
+
+                # check username doesn't already exist
+                async with self.db:
+                    row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
+                if row is not None:
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
+
+        elif migrate_from is not None:
+
+            username = orig_user['username']
 
         else:
 
@@ -294,52 +376,64 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             if not validate_address(payment_address):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
         else:
-            #raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Missing Payment Address'}]})
-            # TODO: not required right now
-            payment_address = None
+            # default to the token_id if payment address is not specified
+            payment_address = token_id
 
         if 'is_app' in payload:
             is_app = parse_boolean(payload['is_app'])
             if is_app is None:
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            is_app = False
+            is_app = orig_user['is_app'] if migrate_from else False
 
         if 'avatar' in payload:
             avatar = payload['avatar']
             if not isinstance(avatar, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            avatar = None
+            if migrate_from and orig_user['avatar']:
+                # if the avatar is a default one, make sure it's updated as well
+                avatar = orig_user['avatar']
+                m = regex.match("^/(avatar|identicon)/{}\.(png|jpe?g)$".format(migrate_from), avatar)
+                if m:
+                    avatar = "/{}/{}.{}".format(m.group(1), token_id, m.group(2))
+            else:
+                avatar = None
 
         if 'name' in payload:
             name = payload['name']
             if not isinstance(name, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            name = None
+            name = orig_user['name'] if migrate_from else None
 
         if 'about' in payload:
             about = payload['about']
             if not isinstance(about, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            about = None
+            about = orig_user['about'] if migrate_from else None
 
         if 'location' in payload:
             location = payload['location']
             if not isinstance(location, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            location = None
+            location = orig_user['location'] if migrate_from else None
 
         async with self.db:
+            if migrate_from:
+                await self.db.execute("DELETE FROM users WHERE token_id = $1", migrate_from)
+                await self.db.execute("UPDATE avatars SET token_id = $1 WHERE token_id = $2",
+                                      token_id, migrate_from)
+                await self.db.execute("UPDATE migrations SET complete = true WHERE migration_key = $1",
+                                      migration_key)
             await self.db.execute("INSERT INTO users "
                                   "(username, token_id, payment_address, name, avatar, is_app, about, location) "
                                   "VALUES "
                                   "($1, $2, $3, $4, $5, $6, $7, $8)",
-                                  username, address, payment_address, name, avatar, is_app, about, location)
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", address)
+                                  username, token_id, payment_address, name, avatar, is_app, about, location)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
@@ -366,6 +460,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         # check if ethereum address is given
         if regex.match('^0x[a-fA-F0-9]{40}$', username):
 
+            eth_req = True
             sql = "SELECT * FROM users WHERE token_id = $1"
             args = [username]
 
@@ -375,6 +470,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         else:
 
+            eth_req = False
             sql = "SELECT * FROM users WHERE lower(username) = lower($1)"
             args = [username]
 
@@ -382,13 +478,26 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             sql += " AND is_app = $2 AND blocked = $3"
             args.extend([True, False])
 
-        async with self.db:
-            row = await self.db.fetchrow(sql, *args)
+        while True:
+            async with self.db:
+                row = await self.db.fetchrow(sql, *args)
 
-        if row is None:
-            raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
+            if row is None:
+                # if this is an eth address request, check if
+                # there is a migrated user
+                if eth_req:
+                    async with self.db:
+                        row = await self.db.fetchrow("SELECT * FROM migrations WHERE "
+                                                     "token_id_orig = $1 AND complete = true",
+                                                     args[0])
+                    if row:
+                        args = [row['token_id_new']]
+                        continue
 
-        self.write(user_row_for_json(self.request, row))
+                raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
+
+            self.write(user_row_for_json(self.request, row))
+            break
 
     async def put(self, username):
 
