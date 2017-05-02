@@ -155,7 +155,7 @@ class UserMixin(RequestVerificationMixin):
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            if 'token_id' in payload:
+            if 'token_id' in payload and payload['token_id'] != token_id:
                 # begin migration
                 token_id_new = payload['token_id']
                 # make sure the new token_id doesn't exist

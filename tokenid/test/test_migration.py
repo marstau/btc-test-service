@@ -289,3 +289,27 @@ class UserMigrationTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
         data = json_decode(resp.body)
         self.assertEqual(data['token_id'], TEST_ADDRESS_3)
+
+    @gen_test
+    @requires_database
+    async def test_update_with_equal_token_id(self):
+        """test user migration: make sure the migration start is ignored if
+        the given token id in the update is the same as the existing one"""
+
+        username = 'jimmo'
+        name = "James"
+        name2 = "Jimmy"
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id, name, payment_address) "
+                              "VALUES ($1, $2, $3, $4)",
+                              username, TEST_ADDRESS, name, TEST_ADDRESS)
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                       body={'token_id': TEST_ADDRESS, 'name': name2})
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+        async with self.pool.acquire() as con:
+            rows = await con.fetchrow("SELECT COUNT(*) FROM migrations")
+            u = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+
+        self.assertEqual(rows['count'], 0)
+        self.assertEqual(u['name'], name2)
