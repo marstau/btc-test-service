@@ -18,8 +18,6 @@ The token id address is extracted from the signature.
 
 + Request (application/json)
 
-    The custom payload is optional, and can be used to hold extra information about a user. The username field is optional; if no username is provided one will be generated for the user.
-
     + Headers
 
         Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
@@ -356,7 +354,6 @@ Allows the user to update their profile
             ]
         }
 
-
 # Group Utils
 
 ## Timestamp generation [/v1/timestamp]
@@ -468,8 +465,6 @@ After being issues an `auth_token` the client would sent that token to the servi
 	    "location": null
         }
 
-Used by
-
 # Group Avatars
 ## Get Identicon [/identicon/{id}.png]
 
@@ -527,6 +522,31 @@ Returns the avatar set by `PUT /user`
         Etag: "<md5 hash of the image>"
 	Last-Modified: "<date the avatar was last modified>"
 
+
+# Group Reports
+
+## Report User/App [/v1/report]
+
+Used to send a report about the user/app
+
+### Send Report [POST]
+
++ Request (application/json)
+
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
+    + Body
+
+        {
+            "token_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+            "details": "app is fraudulent",
+        }
+
++ Response 204
 
 # Group Usage Notes
 

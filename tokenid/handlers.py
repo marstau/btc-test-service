@@ -439,15 +439,15 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         self.write(user_row_for_json(self.request, user))
 
     def put(self):
-        address = self.verify_request()
+        token_id = self.verify_request()
 
         if self.request.headers['Content-Type'] != 'application/json' and not self.request.files:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Expected application/json or multipart/form-data'}]})
 
         if self.request.files:
-            return self.update_user_avatar(address)
+            return self.update_user_avatar(token_id)
         else:
-            return self.update_user(address)
+            return self.update_user(token_id)
 
 class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
@@ -751,6 +751,32 @@ class AvatarHandler(DatabaseMixin, SimpleFileHandler):
 
         await self.handle_file_response(row['img'], "image/{}".format(format.lower()),
                                         row['hash'], row['last_modified'])
+
+
+class ReportHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):
+
+    async def post(self):
+
+        reporter_token_id = self.verify_request()
+
+        if 'token_id' not in self.json or self.json['token_id'] == reporter_token_id:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        reportee_token_id = self.json['token_id']
+
+        if not validate_address(reportee_token_id):
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_token_id', 'message': 'Invalid Token ID'}]})
+
+        if 'details' in self.json:
+            details = self.json['details']
+        else:
+            details = None
+
+        async with self.db:
+            await self.db.execute("INSERT INTO reports (reporter_token_id, reportee_token_id, details) VALUES ($1, $2, $3)",
+                                  reporter_token_id, reportee_token_id, details)
+            await self.db.commit()
+
+        self.set_status(204)
 
 
 class ReputationUpdateHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):

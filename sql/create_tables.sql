@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS avatars (
     last_modified TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
 );
 
+CREATE TABLE IF NOT EXISTS reports (
+    report_id SERIAL PRIMARY KEY,
+    reporter_token_id VARCHAR,
+    reportee_token_id VARCHAR,
+    details VARCHAR,
+    date TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
+);
+
 -- used for keeping track of user token_id migrations
 CREATE TABLE IF NOT EXISTS migrations (
     migration_key VARCHAR PRIMARY KEY,
@@ -62,4 +70,4 @@ CREATE TABLE IF NOT EXISTS migrations (
 CREATE INDEX IF NOT EXISTS idx_migrations_token_id_orig ON migrations (token_id_orig);
 CREATE INDEX IF NOT EXISTS idx_migrations_token_id_new ON migrations (token_id_new);
 
-UPDATE database_version SET version_number = 13;
+UPDATE database_version SET version_number = 14;
