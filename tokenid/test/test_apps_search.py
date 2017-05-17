@@ -1,9 +1,11 @@
+import os
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
 from tokenservices.test.base import AsyncHandlerTest
 from tokenservices.test.database import requires_database
+from tokenservices.ethereum.utils import private_key_to_address
 
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
 
@@ -169,3 +171,36 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         resp = await self.fetch("/search/apps?query={}&limit=x".format(positive_query), method="GET")
         self.assertEqual(resp.code, 400)
+
+    @gen_test(timeout=30)
+    @requires_database
+    async def test_search_order_by_reputation(self):
+        no_of_users_to_generate = 7
+        insert_vals = []
+        for i in range(0, no_of_users_to_generate):
+            key = os.urandom(32)
+            name = "TokenBot"
+            username = 'tokenbot{}'.format(i)
+            insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, 10))
+        for j in range(i + 1, i + 4):
+            key = os.urandom(32)
+            name = "TokenBot"
+            username = 'tokenbot{}'.format(j)
+            insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, j))
+        async with self.pool.acquire() as con:
+            await con.executemany(
+                "INSERT INTO users (token_id, username, name, reputation_score, review_count, is_app) VALUES ($1, $2, $3, $4, $5, TRUE)",
+                insert_vals)
+        resp = await self.fetch("/search/apps?query=Token", method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), j + 1)
+        # make sure that the highest rated "Smith" is first
+        previous_rating = 5.1
+        previous_count = None
+        for user in results:
+            self.assertLessEqual(user['reputation_score'], previous_rating)
+            if user['reputation_score'] == previous_rating:
+                self.assertLessEqual(user['review_count'], previous_count)
+            previous_count = user['review_count']
+            previous_rating = user['reputation_score']

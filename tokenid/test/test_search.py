@@ -261,3 +261,36 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 0)
+
+    @gen_test(timeout=30)
+    @requires_database
+    async def test_search_order_by_reputation(self):
+        no_of_users_to_generate = 7
+        insert_vals = []
+        for i in range(0, no_of_users_to_generate):
+            key = os.urandom(32)
+            name = "John Smith"
+            username = 'johnsmith{}'.format(i)
+            insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, 10))
+        for j in range(i + 1, i + 4):
+            key = os.urandom(32)
+            name = "John Smith"
+            username = 'johnsmith{}'.format(j)
+            insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, j))
+        async with self.pool.acquire() as con:
+            await con.executemany(
+                "INSERT INTO users (token_id, username, name, reputation_score, review_count) VALUES ($1, $2, $3, $4, $5)",
+                insert_vals)
+        resp = await self.fetch("/search/user?query=Smith", method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), j + 1)
+        # make sure that the highest rated "Smith" is first
+        previous_rating = 5.1
+        previous_count = None
+        for user in results:
+            self.assertLessEqual(user['reputation_score'], previous_rating)
+            if user['reputation_score'] == previous_rating:
+                self.assertLessEqual(user['review_count'], previous_count)
+            previous_count = user['review_count']
+            previous_rating = user['reputation_score']

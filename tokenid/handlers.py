@@ -573,7 +573,7 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
             sql = ("SELECT * FROM "
                    "(SELECT * FROM users, TO_TSQUERY($3) AS q "
                    "WHERE (tsv @@ q){}) AS t1 "
-                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, username "
+                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, reputation_score DESC, review_count DESC, username "
                    "OFFSET $1 LIMIT $2"
                    .format(where_q))
             async with self.db:
@@ -663,7 +663,7 @@ class SearchAppsHandler(UserMixin, DatabaseMixin, BaseHandler):
             sql = ("SELECT * FROM "
                    "(SELECT * FROM users, TO_TSQUERY($3) AS q "
                    "WHERE (tsv @@ q){}) AS t1 "
-                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, username "
+                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, reputation_score DESC, review_count DESC, username "
                    "OFFSET $1 LIMIT $2"
                    .format(where_q))
             async with self.db:
