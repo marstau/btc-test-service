@@ -379,6 +379,28 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    async def test_update_user_username_with_different_case(self):
+
+        username_a = 'userA'
+        username_b = 'UsErA'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username_a, TEST_ADDRESS)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
+            "username": username_b
+        })
+
+        self.assertResponseCodeEqual(resp, 200)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row['username'], username_b)
+
+    @gen_test
+    @requires_database
     async def test_update_user_single_values(self):
 
         capitalised = 'BobSmith'

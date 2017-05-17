@@ -226,10 +226,12 @@ class UserMixin(RequestVerificationMixin):
                 if not validate_username(username):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
-                # make sure the username isn't used by a different user
-                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
-                if row is not None:
-                    raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
+                # check if this is simply the same username with a different case
+                if user['username'].lower() != username.lower():
+                    # make sure the username isn't used by a different user
+                    row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
+                    if row is not None:
+                        raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
                 await self.db.execute("UPDATE users SET username = $1 WHERE token_id = $2", username, token_id)
 
