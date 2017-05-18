@@ -205,7 +205,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
         previous_rating = 5.1
         previous_count = None
         for user in results:
-            rep = user['reputation_score'] or 0
+            rep = 2.01 if user['reputation_score'] is None else user['reputation_score']
             self.assertLessEqual(rep, previous_rating)
             if rep == previous_rating:
                 self.assertLessEqual(user['review_count'], previous_count)
