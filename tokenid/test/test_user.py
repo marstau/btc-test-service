@@ -5,6 +5,7 @@ from tornado.testing import gen_test
 
 from tokenid.app import urls
 from tokenid.handlers import generate_username
+from tokenservices.analytics import encode_id
 from tokenservices.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
 from tokenservices.request import sign_request
@@ -57,6 +58,9 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row['username'])
 
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
+
     @gen_test
     @requires_database
     async def test_create_app_user(self):
@@ -78,6 +82,9 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row)
         self.assertTrue(row['is_app'])
+
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
 
     @gen_test
     @requires_database
@@ -139,6 +146,9 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(row['username'], username)
 
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
+
     @gen_test
     @requires_database
     async def test_username_uniqueness(self):
@@ -191,6 +201,9 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body=body)
 
         self.assertResponseCodeEqual(resp, 200)
+
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
 
     @gen_test
     @requires_database

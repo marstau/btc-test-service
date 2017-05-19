@@ -1,13 +1,10 @@
-from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
-from tokenid.handlers import generate_username
+from tokenservices.analytics import encode_id
 from tokenservices.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.request import sign_request
 from tokenservices.ethereum.utils import data_decoder
-from tokenservices.handlers import TIMESTAMP_EXPIRY
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -31,6 +28,14 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch_signed("/report", signing_key=TEST_PRIVATE_KEY, method="POST",
                                        body={'token_id': TEST_ADDRESS_2})
         self.assertResponseCodeEqual(resp, 204)
+
+        # ensure we get two tracking events
+        e1 = await self.next_tracking_event()
+        e2 = await self.next_tracking_event()
+        if e1[0] != encode_id(TEST_ADDRESS):
+            e1, e2 = e2, e1
+        self.assertEqual(e1[1], "Made report")
+        self.assertEqual(e2[1], "Was reported")
 
         async with self.pool.acquire() as con:
             row = await con.fetch("SELECT * FROM reports WHERE reporter_token_id = $1", TEST_ADDRESS)

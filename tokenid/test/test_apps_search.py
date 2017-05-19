@@ -3,6 +3,7 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from tokenid.app import urls
+from tokenservices.analytics import encode_id
 from tokenservices.test.base import AsyncHandlerTest
 from tokenservices.test.database import requires_database
 from tokenservices.ethereum.utils import private_key_to_address
@@ -52,6 +53,9 @@ class AppsHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 3)
+
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], None)
 
         resp = await self.fetch("/apps?featured", method="GET")
         self.assertEqual(resp.code, 200)
@@ -113,10 +117,16 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 1)
 
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], None)
+
         resp = await self.fetch("/search/apps?query={}".format(negative_query), method="GET")
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 0)
+
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], None)
 
     @gen_test
     @requires_database

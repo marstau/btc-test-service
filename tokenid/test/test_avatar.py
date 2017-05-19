@@ -14,6 +14,7 @@ from tornado.ioloop import IOLoop
 
 from tokenid.app import urls
 from tokenid.handlers import EXIF_ORIENTATION
+from tokenservices.analytics import encode_id
 from tokenservices.test.database import requires_database
 from tokenservices.test.base import AsyncHandlerTest
 from tokenservices.ethereum.utils import data_decoder
@@ -114,6 +115,9 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
                                        body=body, headers=headers)
         self.assertResponseCodeEqual(resp, 200)
+
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
 
         resp = await self.fetch("/avatar/{}.jpg".format(TEST_ADDRESS), method="GET", headers={
             'If-None-Match': last_etag,

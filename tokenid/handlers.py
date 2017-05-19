@@ -15,6 +15,7 @@ from tokenservices.errors import JSONHTTPError
 from tokenservices.log import log
 from decimal import Decimal
 from tokenservices.handlers import BaseHandler, RequestVerificationMixin
+from tokenservices.analytics import AnalyticsMixin
 from tornado.web import HTTPError
 from tokenservices.utils import validate_address, validate_decimal_string, parse_int
 from PIL import Image, ExifTags
@@ -139,7 +140,7 @@ def process_image(data, mime_type):
 
     return data, cache_hash, format
 
-class UserMixin(RequestVerificationMixin):
+class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
     async def update_user(self, token_id):
 
@@ -275,6 +276,7 @@ class UserMixin(RequestVerificationMixin):
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
+        self.track(token_id, "Edited profile")
 
     async def update_user_avatar(self, token_id):
 
@@ -308,6 +310,7 @@ class UserMixin(RequestVerificationMixin):
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
+        self.track(token_id, "Updated avatar")
 
 
 class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
@@ -439,6 +442,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
+        self.track(token_id, "Created account")
 
     def put(self):
         token_id = self.verify_request()
@@ -529,7 +533,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         return await self.update_user(address_to_update)
 
 
-class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
+class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
 
     async def get(self):
 
@@ -592,7 +596,9 @@ class SearchUserHandler(UserMixin, DatabaseMixin, BaseHandler):
             'results': results
         })
 
-class SearchAppsHandler(UserMixin, DatabaseMixin, BaseHandler):
+        self.track(None, "Searched", {"query": query, "apps": apps, "payment_address": payment_address})
+
+class SearchAppsHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
 
     async def get(self, force_featured=None):
 
@@ -680,6 +686,8 @@ class SearchAppsHandler(UserMixin, DatabaseMixin, BaseHandler):
             'results': results
         })
 
+        self.track(None, "Searched", {"query": query, "apps": True, "payment_address": payment_address})
+
 
 class SimpleFileHandler(BaseHandler):
     async def handle_file_response(self, data, content_type, etag,
@@ -755,7 +763,7 @@ class AvatarHandler(DatabaseMixin, SimpleFileHandler):
                                         row['hash'], row['last_modified'])
 
 
-class ReportHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):
+class ReportHandler(RequestVerificationMixin, AnalyticsMixin, DatabaseMixin, BaseHandler):
 
     async def post(self):
 
@@ -779,9 +787,11 @@ class ReportHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):
             await self.db.commit()
 
         self.set_status(204)
+        self.track(reporter_token_id, "Made report")
+        self.track(reportee_token_id, "Was reported")
 
 
-class ReputationUpdateHandler(RequestVerificationMixin, DatabaseMixin, BaseHandler):
+class ReputationUpdateHandler(RequestVerificationMixin, AnalyticsMixin, DatabaseMixin, BaseHandler):
 
     async def post(self):
 
