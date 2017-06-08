@@ -15,7 +15,7 @@ from tokenservices.errors import JSONHTTPError
 from tokenservices.log import log
 from decimal import Decimal
 from tokenservices.handlers import BaseHandler, RequestVerificationMixin
-from tokenservices.analytics import AnalyticsMixin
+from tokenservices.analytics import AnalyticsMixin, encode_id as analytics_encode_id
 from tornado.web import HTTPError
 from tokenservices.utils import validate_address, validate_decimal_string, parse_int
 from PIL import Image, ExifTags
@@ -442,6 +442,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
+        self.people_set(token_id, {"distinct_id": analytics_encode_id(token_id)})
         self.track(token_id, "Created account")
 
     def put(self):
