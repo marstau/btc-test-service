@@ -11,6 +11,7 @@ dependencies:
   pre:
     - pip install -r requirements-testing.txt
     - ./configure_environment.sh
+    - pip install --upgrade -r requirements.txt
   post:
     - pip install --upgrade -e git+ssh://git@github.com/tokenbrowser/token-services-lib.git@$CIRCLE_BRANCH#egg=token-services || true
     - yarn global --cache-folder ~/.yarn/cache add aglio --prefix ~/.yarn
