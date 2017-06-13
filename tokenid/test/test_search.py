@@ -302,10 +302,37 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         previous_rating = 5.1
         previous_count = None
         for user in results:
-            print(user)
             rep = 2.01 if user['reputation_score'] is None else user['reputation_score']
             self.assertLessEqual(rep, previous_rating)
             if rep == previous_rating:
                 self.assertLessEqual(user['review_count'], previous_count)
             previous_count = user['review_count']
             previous_rating = rep
+
+    @gen_test
+    @requires_database
+    async def test_underscore_username_query(self):
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+                              "wager_weight", "Wager Weight", "0x0000000000000000000000000000000000000001")
+            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+                              "bob_smith", "Robert", "0x0000000000000000000000000000000000000002")
+            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+                              "bob_jack", "Jackie", "0x0000000000000000000000000000000000000003")
+            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+                              "user1234", "user1234", "0x0000000000000000000000000000000000000004")
+
+        for positive_query in ["wager", "wager_we", "wager_weight", "bob_smi"]:
+
+            resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
+            self.assertEqual(resp.code, 200)
+            body = json_decode(resp.body)
+            self.assertEqual(len(body['results']), 1, "Failed to get match for search query: {}".format(positive_query))
+
+        for negative_query in ["wager_foo", "bob_bar", "1234", "bobsmith"]:
+
+            resp = await self.fetch("/search/user?query={}".format(negative_query), method="GET")
+            self.assertEqual(resp.code, 200)
+            body = json_decode(resp.body)
+            self.assertEqual(len(body['results']), 0, "got unexpected match for search query: {}".format(negative_query))

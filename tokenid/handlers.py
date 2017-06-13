@@ -24,6 +24,9 @@ from PIL.JpegImagePlugin import get_sampling
 assert ExifTags.TAGS[0x0112] == "Orientation"
 EXIF_ORIENTATION = 0x0112
 
+# List of punctuation without _ for username search
+PUNCTUATION = string.punctuation.replace('_', '')
+
 MIN_AUTOID_LENGTH = 5
 
 def generate_username(autoid_length):
@@ -563,7 +566,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                 results = []
         else:
             # strip punctuation
-            query = ''.join([c for c in query if c not in string.punctuation])
+            query = ''.join([" " if c in PUNCTUATION else c for c in query])
             # split words and add in partial matching flags
             query = '|'.join(['{}:*'.format(word) for word in query.split(' ') if word])
             args = [offset, limit, query]
@@ -649,7 +652,7 @@ class SearchAppsHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             results = [user_row_for_json(self.request, row) for row in rows]
         else:
             # strip punctuation
-            query = ''.join([c for c in query if c not in string.punctuation])
+            query = ''.join([" " if c in PUNCTUATION else c for c in query])
             # split words and add in partial matching flags
             query = '|'.join(['{}:*'.format(word) for word in query.split(' ') if word])
             args = [offset, limit, query]
