@@ -58,17 +58,4 @@ CREATE TABLE IF NOT EXISTS reports (
     date TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
 );
 
--- used for keeping track of user token_id migrations
-CREATE TABLE IF NOT EXISTS migrations (
-    migration_key VARCHAR PRIMARY KEY,
-    token_id_orig VARCHAR NOT NULL,
-    token_id_new VARCHAR NOT NULL,
-    complete BOOLEAN DEFAULT FALSE,
-
-    date TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
-);
-
-CREATE INDEX IF NOT EXISTS idx_migrations_token_id_orig ON migrations (token_id_orig);
-CREATE INDEX IF NOT EXISTS idx_migrations_token_id_new ON migrations (token_id_new);
-
-UPDATE database_version SET version_number = 15;
+UPDATE database_version SET version_number = 16;

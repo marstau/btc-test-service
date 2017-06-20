@@ -8,7 +8,6 @@ import email.utils
 import string
 import datetime
 import hashlib
-import uuid
 
 from tokenservices.database import DatabaseMixin
 from tokenservices.errors import JSONHTTPError
@@ -38,9 +37,6 @@ def generate_username(autoid_length):
 
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
-
-def validate_migration_key(key):
-    return isinstance(key, str) and regex.match('^([0-9a-fA-F]+)$', key)
 
 def user_row_for_json(request, row):
     rval = {
@@ -385,18 +381,13 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         # check if ethereum address is given
         if regex.match('^0x[a-fA-F0-9]{40}$', username):
-
-            eth_req = True
             sql = "SELECT * FROM users WHERE token_id = $1"
             args = [username]
 
         # otherwise verify that username is valid
         elif not regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
-
         else:
-
-            eth_req = False
             sql = "SELECT * FROM users WHERE lower(username) = lower($1)"
             args = [username]
 
@@ -404,26 +395,13 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             sql += " AND is_app = $2 AND blocked = $3"
             args.extend([True, False])
 
-        while True:
-            async with self.db:
-                row = await self.db.fetchrow(sql, *args)
+        async with self.db:
+            row = await self.db.fetchrow(sql, *args)
 
-            if row is None:
-                # if this is an eth address request, check if
-                # there is a migrated user
-                if eth_req:
-                    async with self.db:
-                        row = await self.db.fetchrow("SELECT * FROM migrations WHERE "
-                                                     "token_id_orig = $1 AND complete = true",
-                                                     args[0])
-                    if row:
-                        args = [row['token_id_new']]
-                        continue
+        if row is None:
+            raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-                raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
-
-            self.write(user_row_for_json(self.request, row))
-            break
+        self.write(user_row_for_json(self.request, row))
 
     async def put(self, username):
 
