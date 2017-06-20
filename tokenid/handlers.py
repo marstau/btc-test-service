@@ -160,57 +160,6 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            if 'token_id' in payload and payload['token_id'] != token_id:
-                # begin migration
-                token_id_new = payload['token_id']
-                # make sure the new token_id doesn't exist
-                existing = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id_new)
-                if existing:
-                    raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided token id address is already registered'}]})
-                # check if there are already a migration keys for the original token_id
-                keys = await self.db.fetch("SELECT * FROM migrations WHERE token_id_orig = $1", token_id)
-                now = datetime.datetime.utcnow()
-                migration_key = None
-                aborted_migrations = set()
-                for key in keys:
-                    if not key['complete']:
-                        if key['date'] + datetime.timedelta(hours=24) > now:
-                            if key['token_id_new'] == token_id_new:
-                                migration_key = key['migration_key']
-                                continue
-                            # prevent spamming the endpoint
-                            print(key['date'] + datetime.timedelta(seconds=30), now)
-                            if key['date'] + datetime.timedelta(seconds=30) > now:
-                                raise JSONHTTPError(429, body={'errors': [
-                                    {'id': 'too_many_requests',
-                                     'message': 'Wait some time before trying again'}]})
-                        aborted_migrations.add(key['migration_key'])
-                    else:
-                        # make sure the migration wasn't done too recently
-                        if key['date'] + datetime.timedelta(hours=24) > now:
-                            raise JSONHTTPError(400, body={'errors': [
-                                {'id': 'invalid_migration',
-                                 'message': 'Cannot migrate more than once in a 24 hour period'}]})
-                # check if the original token_id was migrated recently
-                key = await self.db.fetchrow("SELECT * FROM migrations "
-                                             "WHERE token_id_new = $1 AND complete = true "
-                                             "ORDER BY date DESC", token_id)
-                if key is not None and key['date'] + datetime.timedelta(hours=24) > now:
-                    raise JSONHTTPError(400, body={'errors': [
-                        {'id': 'invalid_migration',
-                         'message': 'Cannot migrate more than once in a 24 hour period'}]})
-                for key in aborted_migrations:
-                    await self.db.execute("DELETE FROM migrations where migration_key = $1", key)
-                if migration_key is None:
-                    migration_key = uuid.uuid4().hex
-                    # add new entry
-                    await self.db.execute(
-                        "INSERT INTO migrations (migration_key, token_id_orig, token_id_new) "
-                        "VALUES ($1, $2, $3)",
-                        migration_key, token_id, token_id_new)
-                await self.db.commit()
-                self.write({'migration_key': migration_key})
-                return
             # backwards compat
             if 'custom' in payload:
                 custom = payload.pop('custom')
@@ -336,26 +285,6 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         if row is not None:
             raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided token id address is already registered'}]})
 
-        migrate_from = None
-        if 'migration_key' in payload:
-            migration_key = payload.pop('migration_key')
-            if not validate_migration_key(migration_key):
-                raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_migration_key', 'message': 'Invalid Migration Key'}]})
-            async with self.db:
-                migration = await self.db.fetchrow("SELECT * FROM migrations WHERE migration_key = $1", migration_key)
-                # make sure there is a matching migration key and that it's valid for this request
-                if migration is None or \
-                   migration['token_id_new'] != token_id or \
-                   migration['complete'] is True or \
-                   migration['date'] + datetime.timedelta(hours=24) < datetime.datetime.utcnow():
-                    raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_migration_key', 'message': 'Invalid Migration Key'}]})
-                # make sure the original user still exists
-                orig_user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1",
-                                                   migration['token_id_orig'])
-                if orig_user is None:
-                    raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_migration_key', 'message': 'Invalid Migration Key'}]})
-            migrate_from = migration['token_id_orig']
-
         if 'username' in payload:
 
             username = payload['username']
@@ -363,18 +292,11 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             if not validate_username(username):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
 
-            # make sure we're allowed to pass in username with a migrate request
-            if migrate_from is None or orig_user['username'] != username:
-
-                # check username doesn't already exist
-                async with self.db:
-                    row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
-                if row is not None:
-                    raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
-
-        elif migrate_from is not None:
-
-            username = orig_user['username']
+            # check username doesn't already exist
+            async with self.db:
+                row = await self.db.fetchrow("SELECT * FROM users WHERE lower(username) = lower($1)", username)
+            if row is not None:
+                raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
         else:
 
@@ -399,50 +321,37 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             if is_app is None:
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            is_app = orig_user['is_app'] if migrate_from else False
+            is_app = False
 
         if 'avatar' in payload:
             avatar = payload['avatar']
             if not isinstance(avatar, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            if migrate_from and orig_user['avatar']:
-                # if the avatar is a default one, make sure it's updated as well
-                avatar = orig_user['avatar']
-                m = regex.match("^/(avatar|identicon)/{}\.(png|jpe?g)$".format(migrate_from), avatar)
-                if m:
-                    avatar = "/{}/{}.{}".format(m.group(1), token_id, m.group(2))
-            else:
-                avatar = None
+            avatar = None
 
         if 'name' in payload:
             name = payload['name']
             if not isinstance(name, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            name = orig_user['name'] if migrate_from else None
+            name = None
 
         if 'about' in payload:
             about = payload['about']
             if not isinstance(about, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            about = orig_user['about'] if migrate_from else None
+            about = None
 
         if 'location' in payload:
             location = payload['location']
             if not isinstance(location, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            location = orig_user['location'] if migrate_from else None
+            location = None
 
         async with self.db:
-            if migrate_from:
-                await self.db.execute("DELETE FROM users WHERE token_id = $1", migrate_from)
-                await self.db.execute("UPDATE avatars SET token_id = $1 WHERE token_id = $2",
-                                      token_id, migrate_from)
-                await self.db.execute("UPDATE migrations SET complete = true WHERE migration_key = $1",
-                                      migration_key)
             await self.db.execute("INSERT INTO users "
                                   "(username, token_id, payment_address, name, avatar, is_app, about, location) "
                                   "VALUES "
