@@ -647,6 +647,7 @@ class SearchAppsHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
 
         query = self.get_query_argument('query', None)
         payment_address = self.get_query_argument('payment_address', None)
+        top = parse_boolean(self.get_query_argument('top', None))
         if payment_address and not validate_address(payment_address):
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
 
@@ -666,7 +667,7 @@ class SearchAppsHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             if payment_address:
                 where_q.append("payment_address = ${}".format(len(args) + 1))
                 args.append(payment_address)
-                order_by.append(payment_address)
+                order_by.append("payment_address")
             if featured:
                 where_q.append("featured = ${}".format(len(args) + 1))
                 args.append(True)
@@ -674,7 +675,10 @@ class SearchAppsHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             args.append(False)
             where_q.append("is_app = ${}".format(len(args) + 1))
             args.append(True)
-            order_by.extend(['name', 'username'])
+            if top:
+                order_by.extend(["COALESCE(reputation_score, 2.01) DESC NULLS LAST", "review_count DESC", "name", "username"])
+            else:
+                order_by.extend(["name", "COALESCE(reputation_score, 2.01) DESC NULLS LAST", "review_count DESC", "username"])
             async with self.db:
                 sql = ("SELECT * FROM users WHERE {} "
                        "ORDER BY {} "

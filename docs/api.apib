@@ -418,8 +418,46 @@ Used to retrieve a current timestamp from the server for use in signing other re
           "public": true
         }
       ],
-      "query": "query=obsm"
+      "query": "query=bobs"
     }
+
+## Apps [/v1/search/apps/{?query,offset,limit,top}]
+### Search by partial username [GET]
++ Parameters
+    + query: `tokenb` (string, optional) - Partial name/username to search for
+    + payment_address: `0x056db290f8ba3250ca64a45d16284d04bc6f5fbf` (string, optional) - Returns users with a payment address matching the requested address, if present all other parameters are ignored.
+    + top: `true` (boolean, optional) - If present, will sort by reputation score. Only takes effect is `query` is not supplied.
+    + offset: `80` (integer, optional) - Paging offset
+      + Default: `0`
+    + limit: `20` (integer, optional) - Page size
+      + Default: `10`
+
++ Request
+    + Headers
+            Accept: application/json
+
++ Response 200 (application/json)
+  + Body
+
+    {
+      "limit": 10,
+      "offset": 0,
+      "results": [
+        {
+          "username": "tokenbot",
+          "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+          "is_app": true,
+          "token_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+          "about": null,
+          "avatar": null,
+          "name": null,
+          "location": null,
+          "public": false
+        }
+      ],
+      "query": "query=tokenb"
+    }
+
 
 # Group Id Service Login
 

@@ -222,6 +222,22 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             previous_count = user['review_count']
             previous_rating = rep
 
+        # test top search without query
+        resp = await self.fetch("/search/apps?top=true&limit={}".format(k + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), k + 1)
+        # make sure that the highest rated "Smith" is first
+        previous_rating = 5.1
+        previous_count = None
+        for user in results:
+            rep = 2.01 if user['reputation_score'] is None else user['reputation_score']
+            self.assertLessEqual(rep, previous_rating)
+            if rep == previous_rating:
+                self.assertLessEqual(user['review_count'], previous_count)
+            previous_count = user['review_count']
+            previous_rating = rep
+
     @gen_test
     @requires_database
     async def test_app_underscore_username_query(self):
