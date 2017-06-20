@@ -278,12 +278,14 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             key = os.urandom(32)
             name = "John Smith"
             username = 'johnsmith{}'.format(i)
-            insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, 10))
+            insert_vals.append((private_key_to_address(key), username, name,
+                                (i / (no_of_users_to_generate - 1)) * 5.0, 10))
         for j in range(i + 1, i + 4):
             key = os.urandom(32)
             name = "John Smith"
             username = 'johnsmith{}'.format(j)
-            insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, j))
+            insert_vals.append((private_key_to_address(key), username, name,
+                                (i / (no_of_users_to_generate - 1)) * 5.0, j))
         # add some users with no score to make sure
         # users who haven't been reviewed appear last
         for k in range(j + 1, j + 2):
@@ -336,3 +338,106 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             self.assertEqual(resp.code, 200)
             body = json_decode(resp.body)
             self.assertEqual(len(body['results']), 0, "got unexpected match for search query: {}".format(negative_query))
+
+    @gen_test(timeout=30)
+    @requires_database
+    async def test_search_order_by_reputation_without_query(self):
+        no_of_users_to_generate = 20
+        insert_vals = []
+        for i in range(0, no_of_users_to_generate):
+            key = os.urandom(32)
+            name = namegen.get_full_name()
+            username = name.lower().replace(' ', '')
+            insert_vals.append((private_key_to_address(key), username, name,
+                                (i / (no_of_users_to_generate - 1)) * 5.0, 10,
+                                True if i % 2 == 0 else False))
+        for j in range(i + 1, i + 4):
+            key = os.urandom(32)
+            name = namegen.get_full_name()
+            username = name.lower().replace(' ', '')
+            insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, j, True if j % 2 == 0 else False))
+        # add some users with no score to make sure
+        # users who haven't been reviewed appear last
+        for k in range(j + 1, j + 7):
+            key = os.urandom(32)
+            name = namegen.get_full_name()
+            username = name.lower().replace(' ', '')
+            insert_vals.append((private_key_to_address(key), username, name,
+                                None, 0,
+                                True if k % 2 == 0 else False))
+        async with self.pool.acquire() as con:
+            await con.executemany(
+                "INSERT INTO users (token_id, username, name, reputation_score, review_count, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                insert_vals)
+        resp = await self.fetch("/search/user?top=true&limit={}".format(k + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), k + 1)
+        # make sure that the highest rated is first
+        previous_rating = 5.1
+        previous_count = None
+        for user in results:
+            rep = 2.01 if user['reputation_score'] is None else user['reputation_score']
+            self.assertLessEqual(rep, previous_rating)
+            if rep == previous_rating:
+                self.assertLessEqual(user['review_count'], previous_count)
+            previous_count = user['review_count']
+            previous_rating = rep
+
+        # check public search
+        resp = await self.fetch("/search/user?top=true&public=true&limit={}".format(k + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), (k + (1 if k % 2 == 1 else 2)) // 2)
+        # make sure that the highest rated is first
+        previous_rating = 5.1
+        previous_count = None
+        for user in results:
+            self.assertTrue(user['public'])
+            rep = 2.01 if user['reputation_score'] is None else user['reputation_score']
+            self.assertLessEqual(rep, previous_rating)
+            if rep == previous_rating:
+                self.assertLessEqual(user['review_count'], previous_count)
+            previous_count = user['review_count']
+            previous_rating = rep
+
+    @gen_test(timeout=30)
+    @requires_database
+    async def test_apps_vs_public(self):
+        """Make sure if something is marked as being an app it doesn't show up
+        in the public list even if marked with public"""
+
+        no_of_users_to_generate = 20
+        insert_vals = []
+        for i in range(0, no_of_users_to_generate):
+            key = os.urandom(32)
+            name = namegen.get_full_name()
+            username = name.lower().replace(' ', '')
+            insert_vals.append((private_key_to_address(key), username, name,
+                                (i / (no_of_users_to_generate - 1)) * 5.0, 10,
+                                True, True if i % 2 == 0 else False))
+
+        async with self.pool.acquire() as con:
+            await con.executemany(
+                "INSERT INTO users (token_id, username, name, reputation_score, review_count, is_public, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                insert_vals)
+
+        resp = await self.fetch("/search/user?limit={}".format(i + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), no_of_users_to_generate)
+        # make sure if user is marked as being an app, they're not listed as public users
+        for user in results:
+            if user['is_app']:
+                self.assertFalse(user['public'])
+            else:
+                self.assertTrue(user['public'])
+
+        resp = await self.fetch("/search/user?public=true&limit={}".format(i + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), (i + (1 if i % 2 == 1 else 2)) // 2)
+        # make sure if user is marked as being an app, they're not listed as public users
+        for user in results:
+            self.assertFalse(user['is_app'])
+            self.assertTrue(user['public'])

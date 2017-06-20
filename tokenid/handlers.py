@@ -52,6 +52,7 @@ def user_row_for_json(request, row):
         'about': row['about'],
         'location': row['location'],
         'is_app': row['is_app'],
+        'public': row['is_public'] if not row['is_app'] else False,
         'reputation_score': float(row['reputation_score']) if row['reputation_score'] is not None else None,
         'review_count': row['review_count']
     }
@@ -250,6 +251,12 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
                 await self.db.execute("UPDATE users SET is_app = $1 WHERE token_id = $2", is_app, token_id)
+
+            if 'public' in payload and payload['public'] != user['is_public']:
+                is_public = parse_boolean(payload['public'])
+                if not isinstance(is_app, bool):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+                await self.db.execute("UPDATE users SET is_public = $1 WHERE token_id = $2", is_public, token_id)
 
             if 'name' in payload and payload['name'] != user['name']:
                 name = payload['name']
@@ -549,7 +556,9 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
 
         query = self.get_query_argument('query', None)
         apps = parse_boolean(self.get_query_argument('apps', None))
+        public = parse_boolean(self.get_query_argument('public', None))
         payment_address = self.get_query_argument('payment_address', None)
+        top = parse_boolean(self.get_query_argument('top', None))
         if payment_address and not validate_address(payment_address):
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
 
@@ -563,7 +572,26 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                         offset, limit, payment_address)
                 results = [user_row_for_json(self.request, row) for row in rows]
             else:
-                results = []
+                args = [offset, limit]
+                if top:
+                    order = "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, name, username"
+                else:
+                    order = "name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username"
+                if apps is not None:
+                    where = "WHERE is_app = $3"
+                    args.append(apps)
+                elif public is not None:
+                    where = "WHERE is_public = $3 AND is_app = false "
+                    args.append(public)
+                else:
+                    where = ""
+                async with self.db:
+                    rows = await self.db.fetch(
+                        "SELECT * FROM users {}"
+                        "ORDER BY {} "
+                        "OFFSET $1 LIMIT $2".format(where, order),
+                        *args)
+                results = [user_row_for_json(self.request, row) for row in rows]
         else:
             # strip punctuation
             query = ''.join([" " if c in PUNCTUATION else c for c in query])
@@ -577,6 +605,11 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             if apps is not None:
                 where_q.append("is_app = ${}".format(len(args) + 1))
                 args.append(apps)
+            elif public is not None:
+                # apps shouldn't show up in the public profiles list
+                where_q.append("is_app = ${}".format(len(args) + 1))
+                where_q.append("is_public = ${}".format(len(args) + 2))
+                args.extend([False, public])
             where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
             sql = ("SELECT * FROM "
                    "(SELECT * FROM users, TO_TSQUERY($3) AS q "
@@ -587,7 +620,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             async with self.db:
                 rows = await self.db.fetch(sql, *args)
             results = [user_row_for_json(self.request, row) for row in rows]
-        querystring = 'query={}'.format(query)
+        querystring = 'query={}'.format(query if query else '')
         if apps is not None:
             querystring += '&apps={}'.format('true' if apps else 'false')
         if payment_address:
@@ -679,7 +712,7 @@ class SearchAppsHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             async with self.db:
                 rows = await self.db.fetch(sql, *args)
             results = [user_row_for_json(self.request, row) for row in rows]
-        querystring = 'query={}'.format(query)
+        querystring = 'query={}'.format(query if query else '')
         if payment_address:
             querystring += '&payment_address={}'.format(payment_address)
 

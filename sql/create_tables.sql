@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
     location VARCHAR,
     reputation_score DECIMAL,
     review_count INTEGER DEFAULT 0,
+    is_public BOOLEAN DEFAULT FALSE,
     tsv TSVECTOR,
     -- APP specific details
     is_app BOOLEAN DEFAULT FALSE,
@@ -70,4 +71,4 @@ CREATE TABLE IF NOT EXISTS migrations (
 CREATE INDEX IF NOT EXISTS idx_migrations_token_id_orig ON migrations (token_id_orig);
 CREATE INDEX IF NOT EXISTS idx_migrations_token_id_new ON migrations (token_id_new);
 
-UPDATE database_version SET version_number = 14;
+UPDATE database_version SET version_number = 15;
