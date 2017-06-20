@@ -545,3 +545,29 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row)
         self.assertEqual(row['name'], name)
+
+    @gen_test
+    @requires_database
+    async def test_set_public_profile(self):
+        """check that setting a users profile to public works"""
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)
+
+        self.assertIsNone(row)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
+            "public": True
+        })
+
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)
+
+        self.assertIsNotNone(row)

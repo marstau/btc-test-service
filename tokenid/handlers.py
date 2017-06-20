@@ -172,7 +172,7 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 if 'location' in custom:
                     payload['location'] = custom['location']
 
-            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app', 'location']):
+            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app', 'location', 'public']):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
             if 'username' in payload and user['username'] != payload['username']:
@@ -203,7 +203,7 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
             if 'public' in payload and payload['public'] != user['is_public']:
                 is_public = parse_boolean(payload['public'])
-                if not isinstance(is_app, bool):
+                if not isinstance(is_public, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
                 await self.db.execute("UPDATE users SET is_public = $1 WHERE token_id = $2", is_public, token_id)
 
