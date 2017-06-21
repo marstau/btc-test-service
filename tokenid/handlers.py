@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncpg
 import regex
 import io
 import blockies
@@ -16,7 +17,7 @@ from decimal import Decimal
 from tokenservices.handlers import BaseHandler, RequestVerificationMixin
 from tokenservices.analytics import AnalyticsMixin, encode_id as analytics_encode_id
 from tornado.web import HTTPError
-from tokenservices.utils import validate_address, validate_decimal_string, parse_int
+from tokenservices.utils import validate_address, validate_decimal_string, validate_int_string, parse_int
 from PIL import Image, ExifTags
 from PIL.JpegImagePlugin import get_sampling
 
@@ -56,6 +57,13 @@ def user_row_for_json(request, row):
         rval['avatar'] = "{}://{}{}".format(
             request.protocol, request.host,
             rval['avatar'])
+    if row['is_app']:
+        if 'category_names' in row and 'category_ids' in row:
+            rval['categories'] = [{'id': cat[0], 'tag': cat[1], 'name': cat[2]}
+                                  for cat in zip(row['category_ids'], row['category_tags'], row['category_names'])
+                                  if cat[0] is not None and cat[1] is not None and cat[2] is not None]
+        else:
+            rval['categories'] = []
     # backwards compat
     rval['custom'] = {
         'avatar': rval['avatar']
@@ -153,6 +161,8 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
             # make sure a user with the given token_id exists
             user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
+            categories = await self.db.fetch("SELECT category_id FROM app_categories WHERE token_id = $1 ORDER BY category_id", token_id)
+            categories = [row['category_id'] for row in categories]
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
@@ -168,7 +178,7 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 if 'location' in custom:
                     payload['location'] = custom['location']
 
-            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app', 'location', 'public']):
+            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app', 'location', 'public', 'categories']):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
             if 'username' in payload and user['username'] != payload['username']:
@@ -196,6 +206,34 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
                 await self.db.execute("UPDATE users SET is_app = $1 WHERE token_id = $2", is_app, token_id)
+
+            if 'categories' in payload and payload['categories'] != categories:
+                updated_categories = await self.db.fetch(
+                    "SELECT category_id, tag FROM categories WHERE category_id = ANY($1) OR tag = ANY($2)",
+                    [c for c in payload['categories'] if isinstance(c, int)],
+                    [c for c in payload['categories'] if isinstance(c, str)])
+                if len(updated_categories) != len(payload['categories']):
+                    for cat in updated_categories:
+                        if cat['category_id'] in payload['categories']:
+                            payload['categories'].remove(cat['category_id'])
+                        if cat['tag'] in payload['categories']:
+                            payload['categories'].remove(cat['tag'])
+                    raise JSONHTTPError(400, body={'errors': {
+                        'id': 'bad_arguments',
+                        'message': "Invalid Categor{}: {}".format(
+                            'ies' if len(payload['categories']) > 1 else 'y',
+                            ", ".join([str(c) for c in payload['categories']]))}})
+                updated_categories = [c['category_id'] for c in updated_categories]
+                removed = set(categories).difference(set(updated_categories))
+                added = set(updated_categories).difference(set(categories))
+                for category_id in removed:
+                    await self.db.execute("DELETE FROM app_categories WHERE category_id = $1 AND token_id = $2", category_id, token_id)
+                for category_id in added:
+                    try:
+                        await self.db.execute("INSERT INTO app_categories VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                                              category_id, token_id)
+                    except asyncpg.exceptions.ForeignKeyViolationError:
+                        raise JSONHTTPError(400, body={'errors': {'id': 'bad_arguments', 'message': "Invalid Category ID: {}".format(category_id)}})
 
             if 'public' in payload and payload['public'] != user['is_public']:
                 is_public = parse_boolean(payload['public'])
@@ -379,21 +417,34 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
     async def get(self, username):
 
+        sql = ("SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
+               "array_agg(categories.tag) AS category_tags, "
+               "array_agg(category_names.name) AS category_names "
+               "FROM users LEFT JOIN app_categories "
+               "ON users.token_id = app_categories.token_id "
+               "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
+               "AND category_names.language = $1 "
+               "LEFT JOIN categories ON app_categories.category_id = categories.category_id "
+               "WHERE ")
+        args = ['en']
+
         # check if ethereum address is given
         if regex.match('^0x[a-fA-F0-9]{40}$', username):
-            sql = "SELECT * FROM users WHERE token_id = $1"
-            args = [username]
+            sql += "users.token_id = $2"
+            args.append(username)
 
         # otherwise verify that username is valid
         elif not regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username):
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_username', 'message': 'Invalid Username'}]})
         else:
-            sql = "SELECT * FROM users WHERE lower(username) = lower($1)"
-            args = [username]
+            sql += "lower(users.username) = lower($2)"
+            args.append(username)
 
         if self.apps_only:
-            sql += " AND is_app = $2 AND blocked = $3"
+            sql += " AND users.is_app = $3 AND users.blocked = $4"
             args.extend([True, False])
+
+        sql += " GROUP BY users.token_id"
 
         async with self.db:
             row = await self.db.fetchrow(sql, *args)
@@ -433,6 +484,11 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
 class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
 
+    def __init__(self, *args, force_featured=None, force_apps=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.force_featured = force_featured
+        self.force_apps = force_apps
+
     async def get(self):
 
         try:
@@ -442,76 +498,166 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
         query = self.get_query_argument('query', None)
-        apps = parse_boolean(self.get_query_argument('apps', None))
         public = parse_boolean(self.get_query_argument('public', None))
         payment_address = self.get_query_argument('payment_address', None)
         top = parse_boolean(self.get_query_argument('top', None))
+        recent = parse_boolean(self.get_query_argument('recent', None))
+        categories = self.get_query_arguments('category')
+        if len(categories) > 0:
+            categories = [int(cat) if validate_int_string(cat) else cat for cat in categories]
+            # reduce categoires down to their ids
+            async with self.db:
+                categories = await self.db.fetch(
+                    "SELECT category_id FROM categories WHERE category_id = ANY($1) OR tag = ANY($2)",
+                    [c for c in categories if isinstance(c, int)],
+                    [c for c in categories if isinstance(c, str)])
+            categories = [c['category_id'] for c in categories]
         if payment_address and not validate_address(payment_address):
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
 
-        if query is None:
-            if payment_address:
-                async with self.db:
-                    rows = await self.db.fetch(
-                        "SELECT * FROM users WHERE payment_address = $3 "
-                        "ORDER BY payment_address, name, username "
-                        "OFFSET $1 LIMIT $2",
-                        offset, limit, payment_address)
-                results = [user_row_for_json(self.request, row) for row in rows]
+        # forece_featured should always infer force_apps
+        if self.force_apps or self.force_featured:
+            apps = True
+        else:
+            apps = parse_boolean(self.get_query_argument('apps', None))
+
+        if self.force_featured:
+            featured = True
+        elif apps:
+            # only check featured flag if search is for apps
+            featured = self.get_query_argument('featured', None)
+            if featured == '' or featured == 'featured':
+                featured = True
             else:
-                args = [offset, limit]
-                if top:
-                    order = "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, name, username"
-                else:
-                    order = "name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username"
+                featured = parse_boolean(featured)
+        else:
+            featured = None
+
+        if query is None:
+            sql = ("SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
+                   "array_agg(categories.tag) AS category_tags, "
+                   "array_agg(category_names.name) AS category_names "
+                   "FROM users LEFT JOIN app_categories "
+                   "ON users.token_id = app_categories.token_id "
+                   "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
+                   "AND category_names.language = $1 "
+                   "LEFT JOIN categories ON app_categories.category_id = categories.category_id ")
+            sql_args = ['en']
+            if payment_address:
+                sql += "WHERE payment_address = ${} ".format(len(sql_args) + 1)
                 if apps is not None:
-                    where = "WHERE is_app = $3"
-                    args.append(apps)
-                elif public is not None:
-                    where = "WHERE is_public = $3 AND is_app = false "
-                    args.append(public)
+                    sql += "AND is_app = ${} AND blocked = false ".format(len(sql_args) + 1)
+                    sql_args.append(apps)
+                    if featured is not None:
+                        sql += "AND featured = ${} ".format(len(sql_args) + 1)
+                        sql_args.append(featured)
+                sql += "GROUP BY users.token_id "
+                if apps is not None and len(categories) > 0:
+                    sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
+                    sql_args.append(categories)
+                if recent:
+                    sql += "ORDER BY payment_address, created DESC, name, username "
                 else:
-                    where = ""
-                async with self.db:
-                    rows = await self.db.fetch(
-                        "SELECT * FROM users {}"
-                        "ORDER BY {} "
-                        "OFFSET $1 LIMIT $2".format(where, order),
-                        *args)
-                results = [user_row_for_json(self.request, row) for row in rows]
+                    sql += "ORDER BY payment_address, name, username "
+                sql_args.append(payment_address)
+            else:
+                if apps is not None:
+                    sql += "WHERE is_app = ${} AND blocked = false ".format(len(sql_args) + 1)
+                    sql_args.append(apps)
+                    if featured is not None:
+                        sql += "AND featured = ${} ".format(len(sql_args) + 1)
+                        sql_args.append(featured)
+                elif public is not None:
+                    sql += "WHERE is_public = ${} AND is_app = false ".format(len(sql_args) + 1)
+                    sql_args.append(public)
+                sql += "GROUP BY users.token_id "
+                if apps is not None and len(categories) > 0:
+                    sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
+                    sql_args.append(categories)
+                sql += "ORDER BY "
+                if top:
+                    if recent:
+                        sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, created DESC, name, username "
+                    else:
+                        sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, name, username "
+                elif recent:
+                    sql += "created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+                else:
+                    sql += "name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+            sql += "OFFSET ${} LIMIT ${}".format(len(sql_args) + 1, len(sql_args) + 2)
+            sql_args.extend([offset, limit])
         else:
             # strip punctuation
             query = ''.join([" " if c in PUNCTUATION else c for c in query])
             # split words and add in partial matching flags
             query = '|'.join(['{}:*'.format(word) for word in query.split(' ') if word])
-            args = [offset, limit, query]
+            sql_args = ['en', offset, limit, query]
             where_q = []
             if payment_address:
-                where_q.append("payment_address = ${}".format(len(args) + 1))
-                args.append(payment_address)
+                where_q.append("payment_address = ${}".format(len(sql_args) + 1))
+                sql_args.append(payment_address)
             if apps is not None:
-                where_q.append("is_app = ${}".format(len(args) + 1))
-                args.append(apps)
+                where_q.append("is_app = ${}".format(len(sql_args) + 1))
+                sql_args.append(apps)
+                if featured is not None:
+                    where_q.append("featured = ${}".format(len(sql_args) + 1))
+                    sql_args.append(featured)
+                where_q.append("blocked = ${}".format(len(sql_args) + 1))
+                sql_args.append(False)
+                if len(categories) > 0:
+                    for category in categories:
+                        where_q.append("app_categories.category_id = ${}".format(len(sql_args) + 1))
+                        sql_args.append(category)
             elif public is not None:
                 # apps shouldn't show up in the public profiles list
-                where_q.append("is_app = ${}".format(len(args) + 1))
-                where_q.append("is_public = ${}".format(len(args) + 2))
-                args.extend([False, public])
+                where_q.append("is_app = ${}".format(len(sql_args) + 1))
+                where_q.append("is_public = ${}".format(len(sql_args) + 2))
+                sql_args.extend([False, public])
             where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
             sql = ("SELECT * FROM "
-                   "(SELECT * FROM users, TO_TSQUERY($3) AS q "
-                   "WHERE (tsv @@ q){}) AS t1 "
-                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
-                   "OFFSET $1 LIMIT $2"
-                   .format(where_q))
-            async with self.db:
-                rows = await self.db.fetch(sql, *args)
-            results = [user_row_for_json(self.request, row) for row in rows]
+                   "(SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
+                   "array_agg(categories.tag) AS category_tags, "
+                   "array_agg(category_names.name) AS category_names "
+                   "FROM users "
+                   "LEFT JOIN app_categories ON users.token_id = app_categories.token_id "
+                   "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
+                   "AND category_names.language = $1 "
+                   "LEFT JOIN categories ON app_categories.category_id = categories.category_id "
+                   ", TO_TSQUERY($4) AS q "
+                   "WHERE (tsv @@ q){} "
+                   "GROUP BY users.token_id ").format(where_q)
+            if apps is not None and len(categories) > 0:
+                sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
+                sql_args.append(categories)
+            sql += ") AS t1 "
+            sql += "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($4)) DESC, "
+            if top:
+                if recent:
+                    sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, created DESC, name, username "
+                else:
+                    sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, name, username "
+            elif recent:
+                sql += "created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+            else:
+                sql += "name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+            sql += "OFFSET $2 LIMIT $3 "
+
+        async with self.db:
+            rows = await self.db.fetch(sql, *sql_args)
+        results = [user_row_for_json(self.request, row) for row in rows]
         querystring = 'query={}'.format(query if query else '')
         if apps is not None:
             querystring += '&apps={}'.format('true' if apps else 'false')
         if payment_address:
             querystring += '&payment_address={}'.format(payment_address)
+        if featured is not None:
+            querystring += '&featured={}'.format('true' if featured else 'false')
+        if public is not None:
+            querystring += '&public={}'.format('true' if public else 'false')
+        if top is not None:
+            querystring += '&top={}'.format('true' if top else 'false')
+        for category in categories:
+            querystring += '&category={}'.format(category)
 
         self.write({
             'query': querystring,
@@ -520,102 +666,16 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             'results': results
         })
 
-        self.track(None, "Searched", {"query": query, "apps": apps, "payment_address": payment_address})
-
-class SearchAppsHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
-
-    async def get(self, force_featured=None):
-
-        try:
-            offset = int(self.get_query_argument('offset', 0))
-            limit = int(self.get_query_argument('limit', 10))
-        except ValueError:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-
-        query = self.get_query_argument('query', None)
-        payment_address = self.get_query_argument('payment_address', None)
-        top = parse_boolean(self.get_query_argument('top', None))
-        if payment_address and not validate_address(payment_address):
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
-
-        if force_featured:
-            featured = True
-        else:
-            featured = self.get_query_argument('featured', 'false')
-            if featured.lower() == 'false':
-                featured = False
-            else:
-                featured = True
-
-        if query is None:
-            where_q = []
-            order_by = []
-            args = [offset, limit]
-            if payment_address:
-                where_q.append("payment_address = ${}".format(len(args) + 1))
-                args.append(payment_address)
-                order_by.append("payment_address")
-            if featured:
-                where_q.append("featured = ${}".format(len(args) + 1))
-                args.append(True)
-            where_q.append("blocked = ${}".format(len(args) + 1))
-            args.append(False)
-            where_q.append("is_app = ${}".format(len(args) + 1))
-            args.append(True)
-            if top:
-                order_by.extend(["COALESCE(reputation_score, 2.01) DESC NULLS LAST", "review_count DESC", "name", "username"])
-            else:
-                order_by.extend(["name", "COALESCE(reputation_score, 2.01) DESC NULLS LAST", "review_count DESC", "username"])
-            async with self.db:
-                sql = ("SELECT * FROM users WHERE {} "
-                       "ORDER BY {} "
-                       "OFFSET $1 LIMIT $2".format(" AND ".join(where_q), ", ".join(order_by)))
-                rows = await self.db.fetch(
-                    sql,
-                    *args)
-            results = [user_row_for_json(self.request, row) for row in rows]
-        else:
-            # strip punctuation
-            query = ''.join([" " if c in PUNCTUATION else c for c in query])
-            # split words and add in partial matching flags
-            query = '|'.join(['{}:*'.format(word) for word in query.split(' ') if word])
-            args = [offset, limit, query]
-            where_q = []
-            if payment_address:
-                where_q.append("payment_address = ${}".format(len(args) + 1))
-                args.append(payment_address)
-            if featured:
-                where_q.append("featured = ${}".format(len(args) + 1))
-                args.append(True)
-            where_q.append("is_app = ${}".format(len(args) + 1))
-            args.append(True)
-            where_q.append("blocked = ${}".format(len(args) + 1))
-            args.append(False)
-            where_q.append("is_app = ${}".format(len(args) + 1))
-            args.append(True)
-            where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
-            sql = ("SELECT * FROM "
-                   "(SELECT * FROM users, TO_TSQUERY($3) AS q "
-                   "WHERE (tsv @@ q){}) AS t1 "
-                   "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($3)) DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
-                   "OFFSET $1 LIMIT $2"
-                   .format(where_q))
-            async with self.db:
-                rows = await self.db.fetch(sql, *args)
-            results = [user_row_for_json(self.request, row) for row in rows]
-        querystring = 'query={}'.format(query if query else '')
-        if payment_address:
-            querystring += '&payment_address={}'.format(payment_address)
-
-        self.write({
-            'query': querystring,
-            'offset': offset,
-            'limit': limit,
-            'results': results
+        self.track(None, "Searched", {
+            "query": query,
+            "apps": apps,
+            "featured": featured,
+            "recent": recent,
+            "categories": categories,
+            "top": top,
+            "public": public,
+            "payment_address": payment_address
         })
-
-        self.track(None, "Searched", {"query": query, "apps": True, "payment_address": payment_address})
-
 
 class SimpleFileHandler(BaseHandler):
     async def handle_file_response(self, data, content_type, etag,
@@ -718,6 +778,22 @@ class ReportHandler(RequestVerificationMixin, AnalyticsMixin, DatabaseMixin, Bas
         self.track(reporter_token_id, "Made report")
         self.track(reportee_token_id, "Was reported")
 
+class CategoryHandler(DatabaseMixin, BaseHandler):
+
+    async def get(self):
+
+        async with self.db:
+            rows = await self.db.fetch("SELECT * FROM categories "
+                                       "JOIN category_names ON categories.category_id = category_names.category_id "
+                                       "WHERE language = $1 ORDER BY categories.category_id",
+                                       'en')
+
+        self.write({
+            "categories": [
+                {"id": row['category_id'], "tag": row['tag'], "name": row['name']}
+                for row in rows
+            ]
+        })
 
 class ReputationUpdateHandler(RequestVerificationMixin, AnalyticsMixin, DatabaseMixin, BaseHandler):
 

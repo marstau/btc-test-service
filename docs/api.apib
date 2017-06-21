@@ -175,6 +175,8 @@ Used when the registered id represents an app/bot, used by the services to know 
 
 Used to update a user's profile.
  + Available Body Properties: `payment_address`, `username`, `about`, `name`, `avatar`, `location`
+ + App only properties
+  + `categories`: A list of category id's or tags
  + Special Body Properties:
   + `public`: makes a user's profile publicly visible in the browse page
   + `is_app`: marks the user as an app
@@ -192,6 +194,23 @@ Used to update a user's profile.
         {
             "username": "username",
             "name": "Test User"
+        }
+
++ Request (application/json)
+
+    + Headers
+
+        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Token-Timestamp: 1480077346
+
+    + Body
+
+        {
+            "username": "tokenbot",
+            "name": "TokenBot",
+            "is_app": true,
+            "categories": ["social", "cats"]
         }
 
 + Request (multipart/form-data)
@@ -221,6 +240,19 @@ Used to update a user's profile.
             "avatar": "<url for new avatar>",
             "location": null,
             "public": true
+        }
+
++ Response 200 (application/json)
+
+        {
+            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+            "username": "tokenbot",
+            "is_app": true,
+            "name": "TokenBot",
+            "location": null,
+            "public": false,
+            "categories": [{"id": 1, "tag": "social", "name": "Social", {"id": 2, "tag": "cats", "name": "Cats"}]
         }
 
 + Response 400 (application/json)
@@ -382,14 +414,15 @@ Used to retrieve a current timestamp from the server for use in signing other re
 
 
 # Group Search
-## User [/v1/search/user/{?query,offset,limit,apps,top,public}]
-### Search by partial username [GET]
+## User [/v1/search/user/{?query,offset,limit,apps,top,public,recent}]
+### Search users by partial username [GET]
 + Parameters
     + query: `moxiemarl` (string, optional) - Partial name/username to search for
     + payment_address: `0x056db290f8ba3250ca64a45d16284d04bc6f5fbf` (string, optional) - Returns users with a payment address matching the requested address, if present all other parameters are ignored.
     + public: `true` (boolean, optional) - If present and `true`, will return only public profiles, If present and `false` will return only private profiles.
     + apps: `true` (boolean, optional) - If present, will filter on `is_app` flag either returning only users (if `false`) or apps (if `true`). If present `public` is ignored since apps cannot have public profiles.
     + top: `true` (boolean, optional) - If present, will sort by reputation score. Only takes effect is `query` is not supplied.
+    + recent: `true` (boolean, optional) - If present will sort the results by most recently created
     + offset: `80` (integer, optional) - Paging offset
       + Default: `0`
     + limit: `20` (integer, optional) - Page size
@@ -421,12 +454,15 @@ Used to retrieve a current timestamp from the server for use in signing other re
       "query": "query=bobs"
     }
 
-## Apps [/v1/search/apps/{?query,offset,limit,top}]
-### Search by partial username [GET]
+## Apps [/v1/search/apps/{?query,offset,limit,top,featured,recent,category}]
+### Search apps by partial username [GET]
 + Parameters
     + query: `tokenb` (string, optional) - Partial name/username to search for
     + payment_address: `0x056db290f8ba3250ca64a45d16284d04bc6f5fbf` (string, optional) - Returns users with a payment address matching the requested address, if present all other parameters are ignored.
     + top: `true` (boolean, optional) - If present, will sort by reputation score. Only takes effect is `query` is not supplied.
+    + featured: `true` (boolean, optional) - If present and `true`, will return only featured apps, If present and `false` will return only non-featured apps.
+    + recent: `true` (boolean, optional) - If present will sort the results by most recently created
+    + category: `social` (integer or string, optional) - Search only for apps matching the given category. The value can be either the category id, or the category tag. Can be used multiple times to filter apps that match multiple categories.
     + offset: `80` (integer, optional) - Paging offset
       + Default: `0`
     + limit: `20` (integer, optional) - Page size
@@ -452,6 +488,10 @@ Used to retrieve a current timestamp from the server for use in signing other re
           "avatar": null,
           "name": null,
           "location": null,
+          "categories": [
+            {"id": 1, "tag": "social", "name": "Social"},
+            {"id": 2, "tag": "cats", "name": "Cats"}
+          ]
           "public": false
         }
       ],
@@ -600,6 +640,42 @@ Used to send a report about the user/app
         }
 
 + Response 204
+
+# Group Categories
+
+## List available app categories [/v1/categories]
+
+### Send Report [GET]
+
++ Request
+
++ Response 200 (application/json)
+    + Body
+
+        {
+            "categories": [
+                {
+                    "id": 1,
+                    "tag": "help",
+                    "name": "Help"
+                },
+                {
+                    "id": 2,
+                    "tag": "cats",
+                    "name": "Cats"
+                },
+                {
+                    "id": 3,
+                    "tag": "games",
+                    "name": "Games"
+                },
+                {
+                    "id": 4,
+                    "tag": "social",
+                    "name": "Social"
+                }
+            }
+        }
 
 # Group Usage Notes
 

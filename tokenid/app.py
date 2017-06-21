@@ -17,8 +17,12 @@ urls = [
     (r"^/v1/search/user/?$", handlers.SearchUserHandler),
     # app endpoints
     (r"^/v1/apps/(?P<username>0x[a-fA-F0-9]{40})/?$", handlers.UserHandler, {'apps_only': True}),
-    (r"^/v1/(?:search/)?apps(?:/(featured))?/?$", handlers.SearchAppsHandler),
+    (r"^/v1/(?:search/)?apps/?$", handlers.SearchUserHandler, {'force_apps': True}),
+    (r"^/v1/(?:search/)?apps/featured/?$", handlers.SearchUserHandler,
+     {'force_apps': True, 'force_featured': True}),
     (r"^/v1/report/?$", handlers.ReportHandler),
+    # categories
+    (r"^/v1/categories", handlers.CategoryHandler),
 
     # avatar endpoints
     (r"^/identicon/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.IdenticonHandler),

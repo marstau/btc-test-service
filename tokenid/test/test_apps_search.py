@@ -1,6 +1,7 @@
 import os
 from tornado.escape import json_decode
 from tornado.testing import gen_test
+from datetime import datetime
 
 from tokenid.app import urls
 from tokenservices.analytics import encode_id
@@ -74,7 +75,7 @@ class AppsHandlerTest(AsyncHandlerTest):
             resp = await self.fetch("/apps?featured={}".format(false), method="GET")
             self.assertEqual(resp.code, 200)
             body = json_decode(resp.body)
-            self.assertEqual(len(body['results']), 5, "Failed to map featured={} to false".format(false))
+            self.assertEqual(len(body['results']), 2, "Failed to map featured={} to false".format(false))
 
     @gen_test
     @requires_database
@@ -169,7 +170,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             resp = await self.fetch("/search/apps?query={}&featured={}".format(positive_query, false), method="GET")
             self.assertEqual(resp.code, 200)
             body = json_decode(resp.body)
-            self.assertEqual(len(body['results']), 5, "Failed to map featured={} to false".format(false))
+            self.assertEqual(len(body['results']), 2, "Failed to map featured={} to false".format(false))
 
     @gen_test
     @requires_database
@@ -265,3 +266,62 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             self.assertEqual(resp.code, 200)
             body = json_decode(resp.body)
             self.assertEqual(len(body['results']), 0, "got unexpected match for search query: {}".format(negative_query))
+
+    @gen_test
+    @requires_database
+    async def test_recent_query(self):
+
+        setup_data = [
+            ("BotA", "token bot a", TEST_ADDRESS[:-1] + 'a', datetime(2017, 1, 1), 3.4, 100),
+            ("BotB", "token bot b", TEST_ADDRESS[:-1] + 'b', datetime(2017, 1, 2), 4.9, 50),
+            ("BotC", "token bot c", TEST_ADDRESS[:-1] + 'c', datetime(2017, 1, 3), 4.0, 100),
+            ("BotD", "token bot d", TEST_ADDRESS[:-1] + 'd', datetime(2017, 1, 4), 4.9, 50),
+            ("BotE", "token bot e", TEST_ADDRESS[:-1] + 'e', datetime(2017, 1, 5), 3.4, 100)
+        ]
+
+        for username, name, addr, created, rating, rev_count in setup_data:
+            async with self.pool.acquire() as con:
+                await con.execute("INSERT INTO users (username, name, token_id, created, reputation_score, review_count, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                                  username, name, addr, created, rating, rev_count, True)
+
+        # check alphabetical search
+
+        resp = await self.fetch("/search/apps", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 5)
+
+        for expected, result in zip(setup_data, body['results']):
+            self.assertEqual(expected[0], result['username'])
+
+        # check recent search
+
+        resp = await self.fetch("/search/apps?recent=true", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 5)
+
+        for expected, result in zip(setup_data[::-1], body['results']):
+            self.assertEqual(expected[0], result['username'])
+
+        # check recent + top
+
+        resp = await self.fetch("/search/apps?recent=true&top=true", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 5)
+
+        previous_rating = 5.1
+        previous_count = None
+        previous_date = None
+        for user in body['results']:
+            created = [x[3] for x in setup_data if x[0] == user['username']][0]
+            rep = 2.01 if user['reputation_score'] is None else user['reputation_score']
+            self.assertLessEqual(rep, previous_rating)
+            if rep == previous_rating:
+                self.assertLessEqual(user['review_count'], previous_count)
+                if user['review_count'] == previous_count:
+                    self.assertLessEqual(created, previous_date)
+            previous_count = user['review_count']
+            previous_rating = rep
+            previous_date = created
