@@ -281,8 +281,8 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         for username, name, addr, created, rating, rev_count in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, token_id, created, reputation_score, review_count, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                                  username, name, addr, created, rating, rev_count, True)
+                await con.execute("INSERT INTO users (username, name, token_id, created, reputation_score, review_count, is_app, featured) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                                  username, name, addr, created, rating, rev_count, True, True)
 
         # check alphabetical search
 

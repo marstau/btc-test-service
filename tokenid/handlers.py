@@ -533,6 +533,10 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
         else:
             featured = None
 
+        # force featured if recent + apps
+        if recent is True and apps is True:
+            featured = True
+
         if query is None:
             sql = ("SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
                    "array_agg(categories.tag) AS category_tags, "
