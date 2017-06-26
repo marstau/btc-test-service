@@ -26,7 +26,7 @@ deployment:
   development:
     branch: master
     commands:
-      - git clone --depth 1 git@github.com:tokenbrowser/docs.git $HOME/docs
+      - git clone --depth 1 git@github.com:toshiapp/docs.git $HOME/docs
       - $HOME/docs/deploy-blueprint.sh $CIRCLE_PROJECT_REPONAME docs/api.apib $CIRCLE_SHA1
       - git push -f git@heroku.com:token-id-service-development.git $CIRCLE_SHA1:master
   production:
