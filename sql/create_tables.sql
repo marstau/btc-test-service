@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     reputation_score DECIMAL,
     review_count INTEGER DEFAULT 0,
     is_public BOOLEAN DEFAULT FALSE,
+    went_public TIMESTAMP WITHOUT TIME ZONE,
     tsv TSVECTOR,
     -- APP specific details
     is_app BOOLEAN DEFAULT FALSE,
@@ -22,7 +23,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_username ON users (lower(username));
 CREATE INDEX IF NOT EXISTS idx_users_apps ON users (is_app);
-CREATE INDEX IF NOT EXISTS  idx_users_tsv ON users USING gin(tsv);
+CREATE INDEX IF NOT EXISTS idx_users_tsv ON users USING gin(tsv);
+
+CREATE INDEX IF NOT EXISTS idx_users_went_public ON users (went_public DESC NULLS LAST);
 
 CREATE TABLE IF NOT EXISTS auth_tokens (
     token VARCHAR PRIMARY KEY,
@@ -78,4 +81,4 @@ CREATE TABLE IF NOT EXISTS app_categories (
     PRIMARY KEY (category_id, token_id)
 );
 
-UPDATE database_version SET version_number = 17;
+UPDATE database_version SET version_number = 18;

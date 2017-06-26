@@ -239,7 +239,8 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 is_public = parse_boolean(payload['public'])
                 if not isinstance(is_public, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-                await self.db.execute("UPDATE users SET is_public = $1 WHERE token_id = $2", is_public, token_id)
+                await self.db.execute("UPDATE users SET is_public = $1, went_public = $2 WHERE token_id = $3",
+                                      is_public, datetime.datetime.utcnow() if is_public else None, token_id)
 
             if 'name' in payload and payload['name'] != user['name']:
                 name = payload['name']
@@ -537,6 +538,10 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
         if recent is True and apps is True:
             featured = True
 
+        # force remove public if apps is True
+        if apps is True:
+            public = None
+
         if query is None:
             sql = ("SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
                    "array_agg(categories.tag) AS category_tags, "
@@ -581,11 +586,17 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                 sql += "ORDER BY "
                 if top:
                     if recent:
-                        sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, created DESC, name, username "
+                        if public:
+                            sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, went_public DESC NULLS LAST, created DESC, name, username "
+                        else:
+                            sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, created DESC, name, username "
                     else:
                         sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, name, username "
                 elif recent:
-                    sql += "created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+                    if public:
+                        sql += "went_public DESC NULLS LAST, created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+                    else:
+                        sql += "created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
                 else:
                     sql += "name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
             sql += "OFFSET ${} LIMIT ${}".format(len(sql_args) + 1, len(sql_args) + 2)
@@ -637,11 +648,17 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             sql += "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($4)) DESC, "
             if top:
                 if recent:
-                    sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, created DESC, name, username "
+                    if public:
+                        sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, went_public DESC NULLS LAST, created DESC, name, username "
+                    else:
+                        sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, created DESC, name, username "
                 else:
                     sql += "COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, name, username "
             elif recent:
-                sql += "created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+                if public:
+                    sql += "went_public DESC NULLS LAST, created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
+                else:
+                    sql += "created DESC, name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
             else:
                 sql += "name, COALESCE(reputation_score, 2.01) DESC NULLS LAST, review_count DESC, username "
             sql += "OFFSET $2 LIMIT $3 "
