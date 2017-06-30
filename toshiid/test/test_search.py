@@ -3,15 +3,15 @@ import names as namegen
 from tornado.escape import json_decode, json_encode
 from tornado.testing import gen_test
 
-from tokenid.app import urls
-from tokenservices.analytics import encode_id
-from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.test.database import requires_database
-from tokenservices.ethereum.utils import data_encoder, private_key_to_address
+from toshiid.app import urls
+from toshi.analytics import encode_id
+from toshi.test.base import AsyncHandlerTest
+from toshi.test.database import requires_database
+from toshi.ethereum.utils import data_encoder, private_key_to_address
 
 from urllib.parse import quote_plus
 
-from tokenid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS
+from toshiid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS
 
 class SearchUserHandlerTest(AsyncHandlerTest):
 
@@ -34,7 +34,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         negative_query = 'nancy'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -60,7 +60,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         invalid_query = quote_plus('!@#$')
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         resp = await self.fetch("/search/user?query={}".format(invalid_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -75,7 +75,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         inject_attempt = quote_plus("x'; delete from users; select * from users")
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         resp = await self.fetch("/search/user?query={}".format(inject_attempt), method="GET")
         self.assertEqual(resp.code, 200)
@@ -111,7 +111,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             # creates a bunch of users with numbering suffix to test limit and offset
             # insert users in reverse order to assure that search results are returned in alphabetical order
             for i in range(num_of_users - 1, -1, -1):
-                await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)",
+                await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)",
                                   # make sure the suffix is always the same length to ensure it's easy to match alphabetical ordering
                                   "{0}{1:0{2}}".format(username, i, len(str(num_of_users))),
                                   # makes sure every user has a different eth address
@@ -146,7 +146,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             for args in users + bots:
-                await con.execute("INSERT INTO users (username, token_id, is_app) VALUES ($1, $2, $3)", *args)
+                await con.execute("INSERT INTO users (username, toshi_id, is_app) VALUES ($1, $2, $3)", *args)
 
         resp = await self.fetch("/search/user?query=bo", method="GET")
         self.assertEqual(resp.code, 200)
@@ -173,7 +173,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         negative_query = 'nancy'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name) VALUES ($1, $2, $3)",
+            await con.execute("INSERT INTO users (username, toshi_id, name) VALUES ($1, $2, $3)",
                               username, TEST_ADDRESS, name)
 
         resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
@@ -187,7 +187,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertEqual(len(body['results']), 0)
 
     # def get_app(self):
-    #     self._config['database'] = {'dsn': 'postgresql://token@127.0.0.1/token-id'}
+    #     self._config['database'] = {'dsn': 'postgresql://toshi@127.0.0.1/toshi-id'}
     #     app = super().get_app()
     #     self.pool = app.connection_pool
     #     return app
@@ -219,7 +219,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             insert_vals.append((private_key_to_address(key), username, name))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (token_id, username, name) VALUES ($1, $2, $3)",
+                "INSERT INTO users (toshi_id, username, name) VALUES ($1, $2, $3)",
                 insert_vals)
             count = await con.fetchrow("SELECT count(*) FROM users")
             bobcount = await con.fetchrow("SELECT count(*) FROM users where username ilike 'bob%'")
@@ -242,7 +242,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         name = "Bobby"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name, payment_address) VALUES ($1, $2, $3, $4)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, payment_address) VALUES ($1, $2, $3, $4)",
                               username, TEST_ADDRESS, name, TEST_PAYMENT_ADDRESS)
 
         # test simple lookup
@@ -294,7 +294,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
             insert_vals.append((private_key_to_address(key), username, name, None, 0))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (token_id, username, name, reputation_score, review_count) VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count) VALUES ($1, $2, $3, $4, $5)",
                 insert_vals)
         resp = await self.fetch("/search/user?query=Smith&limit={}".format(k + 1), method="GET")
         self.assertEqual(resp.code, 200)
@@ -316,13 +316,13 @@ class SearchUserHandlerTest(AsyncHandlerTest):
     async def test_underscore_username_query(self):
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+            await con.execute("INSERT INTO users (username, name, toshi_id) VALUES ($1, $2, $3)",
                               "wager_weight", "Wager Weight", "0x0000000000000000000000000000000000000001")
-            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+            await con.execute("INSERT INTO users (username, name, toshi_id) VALUES ($1, $2, $3)",
                               "bob_smith", "Robert", "0x0000000000000000000000000000000000000002")
-            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+            await con.execute("INSERT INTO users (username, name, toshi_id) VALUES ($1, $2, $3)",
                               "bob_jack", "Jackie", "0x0000000000000000000000000000000000000003")
-            await con.execute("INSERT INTO users (username, name, token_id) VALUES ($1, $2, $3)",
+            await con.execute("INSERT INTO users (username, name, toshi_id) VALUES ($1, $2, $3)",
                               "user1234", "user1234", "0x0000000000000000000000000000000000000004")
 
         for positive_query in ["wager", "wager_we", "wager_weight", "bob_smi"]:
@@ -367,7 +367,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
                                 True if k % 2 == 0 else False))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (token_id, username, name, reputation_score, review_count, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
                 insert_vals)
         resp = await self.fetch("/search/user?top=true&limit={}".format(k + 1), method="GET")
         self.assertEqual(resp.code, 200)
@@ -419,7 +419,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (token_id, username, name, reputation_score, review_count, is_public, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
                 insert_vals)
 
         resp = await self.fetch("/search/user?limit={}".format(i + 1), method="GET")

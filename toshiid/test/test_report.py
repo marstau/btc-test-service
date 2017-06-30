@@ -1,10 +1,10 @@
 from tornado.testing import gen_test
 
-from tokenid.app import urls
-from tokenservices.analytics import encode_id
-from tokenservices.test.database import requires_database
-from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.ethereum.utils import data_decoder
+from toshiid.app import urls
+from toshi.analytics import encode_id
+from toshi.test.database import requires_database
+from toshi.test.base import AsyncHandlerTest
+from toshi.ethereum.utils import data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -26,7 +26,7 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_report_user(self):
 
         resp = await self.fetch_signed("/report", signing_key=TEST_PRIVATE_KEY, method="POST",
-                                       body={'token_id': TEST_ADDRESS_2})
+                                       body={'toshi_id': TEST_ADDRESS_2})
         self.assertResponseCodeEqual(resp, 204)
 
         # ensure we get two tracking events
@@ -38,26 +38,26 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertEqual(e2[1], "Was reported")
 
         async with self.pool.acquire() as con:
-            row = await con.fetch("SELECT * FROM reports WHERE reporter_token_id = $1", TEST_ADDRESS)
+            row = await con.fetch("SELECT * FROM reports WHERE reporter_toshi_id = $1", TEST_ADDRESS)
 
         self.assertEqual(len(row), 1)
         self.assertEqual(row[0]['details'], None)
 
         resp = await self.fetch_signed("/report", signing_key=TEST_PRIVATE_KEY, method="POST",
-                                       body={'token_id': TEST_ADDRESS_2})
+                                       body={'toshi_id': TEST_ADDRESS_2})
         self.assertResponseCodeEqual(resp, 204)
 
         async with self.pool.acquire() as con:
-            row = await con.fetch("SELECT * FROM reports WHERE reporter_token_id = $1", TEST_ADDRESS)
+            row = await con.fetch("SELECT * FROM reports WHERE reporter_toshi_id = $1", TEST_ADDRESS)
 
         self.assertEqual(len(row), 2)
 
         resp = await self.fetch_signed("/report", signing_key=TEST_PRIVATE_KEY, method="POST",
-                                       body={'token_id': TEST_ADDRESS_3, 'details': ''})
+                                       body={'toshi_id': TEST_ADDRESS_3, 'details': ''})
         self.assertResponseCodeEqual(resp, 204)
 
         async with self.pool.acquire() as con:
-            row = await con.fetch("SELECT * FROM reports WHERE reportee_token_id = $1", TEST_ADDRESS_3)
+            row = await con.fetch("SELECT * FROM reports WHERE reportee_toshi_id = $1", TEST_ADDRESS_3)
 
         self.assertEqual(len(row), 1)
         self.assertEqual(row[0]['details'], '')

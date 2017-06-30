@@ -1,4 +1,4 @@
-from tokenid import app
+from toshiid import app
 
 if __name__ == "__main__":
     app.main()

@@ -1,8 +1,8 @@
-import tokenservices.web
+import toshi.web
 import os
 from . import handlers
 from . import login
-from tokenservices.handlers import GenerateTimestamp
+from toshi.handlers import GenerateTimestamp
 
 urls = [
     (r"^/v1/timestamp/?$", GenerateTimestamp),
@@ -32,7 +32,7 @@ urls = [
     (r"^/v1/reputation/?$", handlers.ReputationUpdateHandler)
 ]
 
-class Application(tokenservices.web.Application):
+class Application(toshi.web.Application):
 
     def process_config(self):
         config = super(Application, self).process_config()

@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS users (
-    token_id VARCHAR PRIMARY KEY,
+    toshi_id VARCHAR PRIMARY KEY,
     payment_address VARCHAR,
     created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'),
     updated TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'),
@@ -46,7 +46,7 @@ CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
 ON users FOR EACH ROW EXECUTE PROCEDURE users_search_trigger();
 
 CREATE TABLE IF NOT EXISTS avatars (
-    token_id VARCHAR PRIMARY KEY,
+    toshi_id VARCHAR PRIMARY KEY,
     img BYTEA,
     hash VARCHAR,
     format VARCHAR NOT NULL,
@@ -55,8 +55,8 @@ CREATE TABLE IF NOT EXISTS avatars (
 
 CREATE TABLE IF NOT EXISTS reports (
     report_id SERIAL PRIMARY KEY,
-    reporter_token_id VARCHAR,
-    reportee_token_id VARCHAR,
+    reporter_toshi_id VARCHAR,
+    reportee_toshi_id VARCHAR,
     details VARCHAR,
     date TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
 );
@@ -76,9 +76,9 @@ CREATE TABLE IF NOT EXISTS category_names (
 
 CREATE TABLE IF NOT EXISTS app_categories (
     category_id SERIAL REFERENCES categories ON DELETE CASCADE,
-    token_id VARCHAR REFERENCES users ON DELETE CASCADE,
+    toshi_id VARCHAR REFERENCES users ON DELETE CASCADE,
 
-    PRIMARY KEY (category_id, token_id)
+    PRIMARY KEY (category_id, toshi_id)
 );
 
-UPDATE database_version SET version_number = 18;
+UPDATE database_version SET version_number = 19;

@@ -10,14 +10,14 @@ import string
 import datetime
 import hashlib
 
-from tokenservices.database import DatabaseMixin
-from tokenservices.errors import JSONHTTPError
-from tokenservices.log import log
+from toshi.database import DatabaseMixin
+from toshi.errors import JSONHTTPError
+from toshi.log import log
 from decimal import Decimal
-from tokenservices.handlers import BaseHandler, RequestVerificationMixin
-from tokenservices.analytics import AnalyticsMixin, encode_id as analytics_encode_id
+from toshi.handlers import BaseHandler, RequestVerificationMixin
+from toshi.analytics import AnalyticsMixin, encode_id as analytics_encode_id
 from tornado.web import HTTPError
-from tokenservices.utils import validate_address, validate_decimal_string, validate_int_string, parse_int
+from toshi.utils import validate_address, validate_decimal_string, validate_int_string, parse_int
 from PIL import Image, ExifTags
 from PIL.JpegImagePlugin import get_sampling
 
@@ -42,9 +42,10 @@ def validate_username(username):
 def user_row_for_json(request, row):
     rval = {
         'username': row['username'],
-        'token_id': row['token_id'],
+        'token_id': row['toshi_id'],
+        'toshi_id': row['toshi_id'],
         'payment_address': row['payment_address'],
-        'avatar': row['avatar'] or "/identicon/{}.png".format(row['token_id']),
+        'avatar': row['avatar'] or "/identicon/{}.png".format(row['toshi_id']),
         'name': row['name'],
         'about': row['about'],
         'location': row['location'],
@@ -150,7 +151,7 @@ def process_image(data, mime_type):
 
 class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
-    async def update_user(self, token_id):
+    async def update_user(self, toshi_id):
 
         try:
             payload = self.json
@@ -159,9 +160,9 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
         async with self.db:
 
-            # make sure a user with the given token_id exists
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
-            categories = await self.db.fetch("SELECT category_id FROM app_categories WHERE token_id = $1 ORDER BY category_id", token_id)
+            # make sure a user with the given toshi_id exists
+            user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
+            categories = await self.db.fetch("SELECT category_id FROM app_categories WHERE toshi_id = $1 ORDER BY category_id", toshi_id)
             categories = [row['category_id'] for row in categories]
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
@@ -193,19 +194,19 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                     if row is not None:
                         raise JSONHTTPError(400, body={'errors': [{'id': 'username_taken', 'message': 'Username Taken'}]})
 
-                await self.db.execute("UPDATE users SET username = $1 WHERE token_id = $2", username, token_id)
+                await self.db.execute("UPDATE users SET username = $1 WHERE toshi_id = $2", username, toshi_id)
 
             if 'payment_address' in payload and payload['payment_address'] != user['payment_address']:
                 payment_address = payload['payment_address']
                 if not validate_address(payment_address):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
-                await self.db.execute("UPDATE users SET payment_address = $1 WHERE token_id = $2", payment_address, token_id)
+                await self.db.execute("UPDATE users SET payment_address = $1 WHERE toshi_id = $2", payment_address, toshi_id)
 
             if 'is_app' in payload and payload['is_app'] != user['is_app']:
                 is_app = parse_boolean(payload['is_app'])
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-                await self.db.execute("UPDATE users SET is_app = $1 WHERE token_id = $2", is_app, token_id)
+                await self.db.execute("UPDATE users SET is_app = $1 WHERE toshi_id = $2", is_app, toshi_id)
 
             if 'categories' in payload and payload['categories'] != categories:
                 updated_categories = await self.db.fetch(
@@ -227,11 +228,11 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 removed = set(categories).difference(set(updated_categories))
                 added = set(updated_categories).difference(set(categories))
                 for category_id in removed:
-                    await self.db.execute("DELETE FROM app_categories WHERE category_id = $1 AND token_id = $2", category_id, token_id)
+                    await self.db.execute("DELETE FROM app_categories WHERE category_id = $1 AND toshi_id = $2", category_id, toshi_id)
                 for category_id in added:
                     try:
                         await self.db.execute("INSERT INTO app_categories VALUES ($1, $2) ON CONFLICT DO NOTHING",
-                                              category_id, token_id)
+                                              category_id, toshi_id)
                     except asyncpg.exceptions.ForeignKeyViolationError:
                         raise JSONHTTPError(400, body={'errors': {'id': 'bad_arguments', 'message': "Invalid Category ID: {}".format(category_id)}})
 
@@ -239,44 +240,44 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 is_public = parse_boolean(payload['public'])
                 if not isinstance(is_public, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-                await self.db.execute("UPDATE users SET is_public = $1, went_public = $2 WHERE token_id = $3",
-                                      is_public, datetime.datetime.utcnow() if is_public else None, token_id)
+                await self.db.execute("UPDATE users SET is_public = $1, went_public = $2 WHERE toshi_id = $3",
+                                      is_public, datetime.datetime.utcnow() if is_public else None, toshi_id)
 
             if 'name' in payload and payload['name'] != user['name']:
                 name = payload['name']
                 if not isinstance(name, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Name'}]})
-                await self.db.execute("UPDATE users SET name = $1 WHERE token_id = $2", name, token_id)
+                await self.db.execute("UPDATE users SET name = $1 WHERE toshi_id = $2", name, toshi_id)
 
             if 'avatar' in payload and payload['avatar'] != user['avatar']:
                 avatar = payload['avatar']
                 if not isinstance(avatar, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Avatar'}]})
-                await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar, token_id)
+                await self.db.execute("UPDATE users SET avatar = $1 WHERE toshi_id = $2", avatar, toshi_id)
 
             if 'about' in payload and payload['about'] != user['about']:
                 about = payload['about']
                 if not isinstance(about, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid About'}]})
-                await self.db.execute("UPDATE users SET about = $1 WHERE token_id = $2", about, token_id)
+                await self.db.execute("UPDATE users SET about = $1 WHERE toshi_id = $2", about, toshi_id)
 
             if 'location' in payload and payload['location'] != user['location']:
                 location = payload['location']
                 if not isinstance(location, str):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Location'}]})
-                await self.db.execute("UPDATE users SET location = $1 WHERE token_id = $2", location, token_id)
+                await self.db.execute("UPDATE users SET location = $1 WHERE toshi_id = $2", location, toshi_id)
 
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
-        self.track(token_id, "Edited profile")
+        self.track(toshi_id, "Edited profile")
 
-    async def update_user_avatar(self, token_id):
+    async def update_user_avatar(self, toshi_id):
 
         # make sure a user with the given address exists
         async with self.db:
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
 
         if user is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
@@ -294,31 +295,31 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
         data, cache_hash, format = await self.run_in_executor(process_image, data, mime_type)
 
         async with self.db:
-            await self.db.execute("INSERT INTO avatars (token_id, img, hash, format) VALUES ($1, $2, $3, $4) "
-                                  "ON CONFLICT (token_id) DO UPDATE "
+            await self.db.execute("INSERT INTO avatars (toshi_id, img, hash, format) VALUES ($1, $2, $3, $4) "
+                                  "ON CONFLICT (toshi_id) DO UPDATE "
                                   "SET img = EXCLUDED.img, hash = EXCLUDED.hash, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
-                                  token_id, data, cache_hash, format)
-            avatar_url = "/avatar/{}.{}".format(token_id, 'jpg' if format == 'JPEG' else 'png')
-            await self.db.execute("UPDATE users SET avatar = $1 WHERE token_id = $2", avatar_url, token_id)
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
+                                  toshi_id, data, cache_hash, format)
+            avatar_url = "/avatar/{}.{}".format(toshi_id, 'jpg' if format == 'JPEG' else 'png')
+            await self.db.execute("UPDATE users SET avatar = $1 WHERE toshi_id = $2", avatar_url, toshi_id)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
-        self.track(token_id, "Updated avatar")
+        self.track(toshi_id, "Updated avatar")
 
 
 class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
     async def post(self):
 
-        token_id = self.verify_request()
+        toshi_id = self.verify_request()
         payload = self.json
 
         # check if the address has already registered a username
         async with self.db:
-            row = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
+            row = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
         if row is not None:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided token id address is already registered'}]})
+            raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided toshi id address is already registered'}]})
 
         if 'username' in payload:
 
@@ -348,8 +349,8 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             if not validate_address(payment_address):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
         else:
-            # default to the token_id if payment address is not specified
-            payment_address = token_id
+            # default to the toshi_id if payment address is not specified
+            payment_address = toshi_id
 
         if 'is_app' in payload:
             is_app = parse_boolean(payload['is_app'])
@@ -388,27 +389,27 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         async with self.db:
             await self.db.execute("INSERT INTO users "
-                                  "(username, token_id, payment_address, name, avatar, is_app, about, location) "
+                                  "(username, toshi_id, payment_address, name, avatar, is_app, about, location) "
                                   "VALUES "
                                   "($1, $2, $3, $4, $5, $6, $7, $8)",
-                                  username, token_id, payment_address, name, avatar, is_app, about, location)
-            user = await self.db.fetchrow("SELECT * FROM users WHERE token_id = $1", token_id)
+                                  username, toshi_id, payment_address, name, avatar, is_app, about, location)
+            user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 
         self.write(user_row_for_json(self.request, user))
-        self.people_set(token_id, {"distinct_id": analytics_encode_id(token_id)})
-        self.track(token_id, "Created account")
+        self.people_set(toshi_id, {"distinct_id": analytics_encode_id(toshi_id)})
+        self.track(toshi_id, "Created account")
 
     def put(self):
-        token_id = self.verify_request()
+        toshi_id = self.verify_request()
 
         if self.request.headers['Content-Type'] != 'application/json' and not self.request.files:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Expected application/json or multipart/form-data'}]})
 
         if self.request.files:
-            return self.update_user_avatar(token_id)
+            return self.update_user_avatar(toshi_id)
         else:
-            return self.update_user(token_id)
+            return self.update_user(toshi_id)
 
 class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
@@ -422,7 +423,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
                "array_agg(categories.tag) AS category_tags, "
                "array_agg(category_names.name) AS category_names "
                "FROM users LEFT JOIN app_categories "
-               "ON users.token_id = app_categories.token_id "
+               "ON users.toshi_id = app_categories.toshi_id "
                "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
                "AND category_names.language = $1 "
                "LEFT JOIN categories ON app_categories.category_id = categories.category_id "
@@ -431,7 +432,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         # check if ethereum address is given
         if regex.match('^0x[a-fA-F0-9]{40}$', username):
-            sql += "users.token_id = $2"
+            sql += "users.toshi_id = $2"
             args.append(username)
 
         # otherwise verify that username is valid
@@ -445,7 +446,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             sql += " AND users.is_app = $3 AND users.blocked = $4"
             args.extend([True, False])
 
-        sql += " GROUP BY users.token_id"
+        sql += " GROUP BY users.toshi_id"
 
         async with self.db:
             row = await self.db.fetchrow(sql, *args)
@@ -468,7 +469,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             if row is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            address_to_update = row['token_id']
+            address_to_update = row['toshi_id']
 
         else:
 
@@ -547,7 +548,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                    "array_agg(categories.tag) AS category_tags, "
                    "array_agg(category_names.name) AS category_names "
                    "FROM users LEFT JOIN app_categories "
-                   "ON users.token_id = app_categories.token_id "
+                   "ON users.toshi_id = app_categories.toshi_id "
                    "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
                    "AND category_names.language = $1 "
                    "LEFT JOIN categories ON app_categories.category_id = categories.category_id ")
@@ -560,7 +561,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     if featured is not None:
                         sql += "AND featured = ${} ".format(len(sql_args) + 1)
                         sql_args.append(featured)
-                sql += "GROUP BY users.token_id "
+                sql += "GROUP BY users.toshi_id "
                 if apps is not None and len(categories) > 0:
                     sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
                     sql_args.append(categories)
@@ -579,7 +580,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                 elif public is not None:
                     sql += "WHERE is_public = ${} AND is_app = false ".format(len(sql_args) + 1)
                     sql_args.append(public)
-                sql += "GROUP BY users.token_id "
+                sql += "GROUP BY users.toshi_id "
                 if apps is not None and len(categories) > 0:
                     sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
                     sql_args.append(categories)
@@ -634,13 +635,13 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                    "array_agg(categories.tag) AS category_tags, "
                    "array_agg(category_names.name) AS category_names "
                    "FROM users "
-                   "LEFT JOIN app_categories ON users.token_id = app_categories.token_id "
+                   "LEFT JOIN app_categories ON users.toshi_id = app_categories.toshi_id "
                    "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
                    "AND category_names.language = $1 "
                    "LEFT JOIN categories ON app_categories.category_id = categories.category_id "
                    ", TO_TSQUERY($4) AS q "
                    "WHERE (tsv @@ q){} "
-                   "GROUP BY users.token_id ").format(where_q)
+                   "GROUP BY users.toshi_id ").format(where_q)
             if apps is not None and len(categories) > 0:
                 sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
                 sql_args.append(categories)
@@ -763,7 +764,7 @@ class AvatarHandler(DatabaseMixin, SimpleFileHandler):
             format = 'JPEG'
 
         async with self.db:
-            row = await self.db.fetchrow("SELECT * FROM avatars WHERE token_id = $1", address)
+            row = await self.db.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", address)
 
         if row is None or row['format'] != format:
             raise HTTPError(404)
@@ -776,14 +777,14 @@ class ReportHandler(RequestVerificationMixin, AnalyticsMixin, DatabaseMixin, Bas
 
     async def post(self):
 
-        reporter_token_id = self.verify_request()
+        reporter_toshi_id = self.verify_request()
 
-        if 'token_id' not in self.json or self.json['token_id'] == reporter_token_id:
+        if 'toshi_id' not in self.json or self.json['toshi_id'] == reporter_toshi_id:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-        reportee_token_id = self.json['token_id']
+        reportee_toshi_id = self.json['toshi_id']
 
-        if not validate_address(reportee_token_id):
-            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_token_id', 'message': 'Invalid Token ID'}]})
+        if not validate_address(reportee_toshi_id):
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_toshi_id', 'message': 'Invalid Toshi ID'}]})
 
         if 'details' in self.json:
             details = self.json['details']
@@ -791,13 +792,13 @@ class ReportHandler(RequestVerificationMixin, AnalyticsMixin, DatabaseMixin, Bas
             details = None
 
         async with self.db:
-            await self.db.execute("INSERT INTO reports (reporter_token_id, reportee_token_id, details) VALUES ($1, $2, $3)",
-                                  reporter_token_id, reportee_token_id, details)
+            await self.db.execute("INSERT INTO reports (reporter_toshi_id, reportee_toshi_id, details) VALUES ($1, $2, $3)",
+                                  reporter_toshi_id, reportee_toshi_id, details)
             await self.db.commit()
 
         self.set_status(204)
-        self.track(reporter_token_id, "Made report")
-        self.track(reportee_token_id, "Was reported")
+        self.track(reporter_toshi_id, "Made report")
+        self.track(reportee_toshi_id, "Was reported")
 
 class CategoryHandler(DatabaseMixin, BaseHandler):
 
@@ -834,8 +835,8 @@ class ReputationUpdateHandler(RequestVerificationMixin, AnalyticsMixin, Database
         if not all(x in self.json for x in ['address', 'score', 'count']):
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
-        token_id = self.json['address']
-        if not validate_address(token_id):
+        toshi_id = self.json['address']
+        if not validate_address(toshi_id):
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_address', 'message': 'Invalid Address'}]})
 
         count = self.json['count']
@@ -850,8 +851,8 @@ class ReputationUpdateHandler(RequestVerificationMixin, AnalyticsMixin, Database
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_score', 'message': 'Invalid Score'}]})
 
         async with self.db:
-            await self.db.execute("UPDATE users SET reputation_score = $1, review_count = $2 WHERE token_id = $3",
-                                  score, count, token_id)
+            await self.db.execute("UPDATE users SET reputation_score = $1, review_count = $2 WHERE toshi_id = $3",
+                                  score, count, toshi_id)
             await self.db.commit()
 
         self.set_status(204)

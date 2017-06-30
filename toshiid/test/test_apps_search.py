@@ -3,11 +3,11 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 from datetime import datetime
 
-from tokenid.app import urls
-from tokenservices.analytics import encode_id
-from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.test.database import requires_database
-from tokenservices.ethereum.utils import private_key_to_address
+from toshiid.app import urls
+from toshi.analytics import encode_id
+from toshi.test.base import AsyncHandlerTest
+from toshi.test.database import requires_database
+from toshi.ethereum.utils import private_key_to_address
 
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
 
@@ -29,8 +29,8 @@ class AppsHandlerTest(AsyncHandlerTest):
         self.assertEqual(len(body['results']), 0)
 
         setup_data = [
-            ("TokenBotA", TEST_ADDRESS[:-1] + 'f', False, True),
-            ("TokenBotB", TEST_ADDRESS[:-1] + 'e', False, True),
+            ("ToshiBotA", TEST_ADDRESS[:-1] + 'f', False, True),
+            ("ToshiBotB", TEST_ADDRESS[:-1] + 'e', False, True),
             ("FeaturedBotA", TEST_ADDRESS[:-1] + 'd', True, True),
             ("FeaturedBotB", TEST_ADDRESS[:-1] + 'c', True, True),
             ("FeaturedBotC", TEST_ADDRESS[:-1] + 'b', True, True),
@@ -41,7 +41,7 @@ class AppsHandlerTest(AsyncHandlerTest):
 
         for username, addr, featured, is_app in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, token_id, is_app, featured) VALUES ($1, $2, $3, $4, $5)",
+                await con.execute("INSERT INTO users (username, name, toshi_id, is_app, featured) VALUES ($1, $2, $3, $4, $5)",
                                   username, username, addr, is_app, featured)
 
         resp = await self.fetch("/apps", method="GET")
@@ -80,9 +80,9 @@ class AppsHandlerTest(AsyncHandlerTest):
     @gen_test
     @requires_database
     async def test_get_app(self):
-        username = "TokenBot"
+        username = "ToshiBot"
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, token_id, is_app) VALUES ($1, $2, $3, $4)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
                               username, username, TEST_ADDRESS, True)
         resp = await self.fetch("/apps/{}".format(TEST_ADDRESS), method="GET")
         self.assertResponseCodeEqual(resp, 200)
@@ -105,12 +105,12 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
     @gen_test
     @requires_database
     async def test_username_query(self):
-        username = "TokenBot"
-        positive_query = 'Tok'
+        username = "ToshiBot"
+        positive_query = 'Tos'
         negative_query = 'TickleFight'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, token_id, is_app) VALUES ($1, $2, $3, $4)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
                               username, username, TEST_ADDRESS, True)
 
         resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
@@ -136,16 +136,16 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
         positive_query = 'bot'
 
         setup_data = [
-            ("TokenBotA", "token bot a", TEST_ADDRESS[:-1] + 'f', False),
-            ("TokenBotB", "token bot b", TEST_ADDRESS[:-1] + 'e', False),
-            ("FeaturedBotA", "featured token bot a", TEST_ADDRESS[:-1] + 'd', True),
-            ("FeaturedBotB", "featured token bot b", TEST_ADDRESS[:-1] + 'c', True),
-            ("FeaturedBotC", "featured token bot c", TEST_ADDRESS[:-1] + 'b', True)
+            ("ToshiBotA", "toshi bot a", TEST_ADDRESS[:-1] + 'f', False),
+            ("ToshiBotB", "toshi bot b", TEST_ADDRESS[:-1] + 'e', False),
+            ("FeaturedBotA", "featured toshi bot a", TEST_ADDRESS[:-1] + 'd', True),
+            ("FeaturedBotB", "featured toshi bot b", TEST_ADDRESS[:-1] + 'c', True),
+            ("FeaturedBotC", "featured toshi bot c", TEST_ADDRESS[:-1] + 'b', True)
         ]
 
         for username, name, addr, featured in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, token_id, featured, is_app) VALUES ($1, $2, $3, $4, $5)",
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app) VALUES ($1, $2, $3, $4, $5)",
                                   username, name, addr, featured, True)
 
         resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
@@ -190,25 +190,25 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
         insert_vals = []
         for i in range(0, no_of_users_to_generate):
             key = os.urandom(32)
-            name = "TokenBot"
-            username = 'tokenbot{}'.format(i)
+            name = "ToshiBot"
+            username = 'toshibot{}'.format(i)
             insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, 10))
         for j in range(i + 1, i + 4):
             key = os.urandom(32)
-            name = "TokenBot"
-            username = 'tokenbot{}'.format(j)
+            name = "ToshiBot"
+            username = 'toshibot{}'.format(j)
             insert_vals.append((private_key_to_address(key), username, name, (i / (no_of_users_to_generate - 1)) * 5.0, j))
         # add some users with no score to make sure
         # users who haven't been reviewed appear last
         for k in range(j + 1, j + 2):
             key = os.urandom(32)
-            username = 'tokenbot{}'.format(k)
+            username = 'toshibot{}'.format(k)
             insert_vals.append((private_key_to_address(key), username, name, None, 0))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (token_id, username, name, reputation_score, review_count, is_app) VALUES ($1, $2, $3, $4, $5, TRUE)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_app) VALUES ($1, $2, $3, $4, $5, TRUE)",
                 insert_vals)
-        resp = await self.fetch("/search/apps?query=Token&limit={}".format(k + 1), method="GET")
+        resp = await self.fetch("/search/apps?query=Toshi&limit={}".format(k + 1), method="GET")
         self.assertEqual(resp.code, 200)
         results = json_decode(resp.body)['results']
         self.assertEqual(len(results), k + 1)
@@ -244,13 +244,13 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
     async def test_app_underscore_username_query(self):
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, token_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
                               "wager_weight", "Wager Weight", "0x0000000000000000000000000000000000000001")
-            await con.execute("INSERT INTO users (username, name, token_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
                               "bob_smith", "Robert", "0x0000000000000000000000000000000000000002")
-            await con.execute("INSERT INTO users (username, name, token_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
                               "bob_jack", "Jackie", "0x0000000000000000000000000000000000000003")
-            await con.execute("INSERT INTO users (username, name, token_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
                               "user1234", "user1234", "0x0000000000000000000000000000000000000004")
 
         for positive_query in ["wager", "wager_we", "wager_weight", "bob_smi"]:
@@ -272,16 +272,16 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
     async def test_recent_query(self):
 
         setup_data = [
-            ("BotA", "token bot a", TEST_ADDRESS[:-1] + 'a', datetime(2017, 1, 1), 3.4, 100),
-            ("BotB", "token bot b", TEST_ADDRESS[:-1] + 'b', datetime(2017, 1, 2), 4.9, 50),
-            ("BotC", "token bot c", TEST_ADDRESS[:-1] + 'c', datetime(2017, 1, 3), 4.0, 100),
-            ("BotD", "token bot d", TEST_ADDRESS[:-1] + 'd', datetime(2017, 1, 4), 4.9, 50),
-            ("BotE", "token bot e", TEST_ADDRESS[:-1] + 'e', datetime(2017, 1, 5), 3.4, 100)
+            ("BotA", "toshi bot a", TEST_ADDRESS[:-1] + 'a', datetime(2017, 1, 1), 3.4, 100),
+            ("BotB", "toshi bot b", TEST_ADDRESS[:-1] + 'b', datetime(2017, 1, 2), 4.9, 50),
+            ("BotC", "toshi bot c", TEST_ADDRESS[:-1] + 'c', datetime(2017, 1, 3), 4.0, 100),
+            ("BotD", "toshi bot d", TEST_ADDRESS[:-1] + 'd', datetime(2017, 1, 4), 4.9, 50),
+            ("BotE", "toshi bot e", TEST_ADDRESS[:-1] + 'e', datetime(2017, 1, 5), 3.4, 100)
         ]
 
         for username, name, addr, created, rating, rev_count in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, token_id, created, reputation_score, review_count, is_app, featured) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                await con.execute("INSERT INTO users (username, name, toshi_id, created, reputation_score, review_count, is_app, featured) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                                   username, name, addr, created, rating, rev_count, True, True)
 
         # check alphabetical search

@@ -12,12 +12,12 @@ from tornado.testing import gen_test
 from tornado.platform.asyncio import to_asyncio_future
 from tornado.ioloop import IOLoop
 
-from tokenid.app import urls
-from tokenid.handlers import EXIF_ORIENTATION
-from tokenservices.analytics import encode_id
-from tokenservices.test.database import requires_database
-from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.ethereum.utils import data_decoder
+from toshiid.app import urls
+from toshiid.handlers import EXIF_ORIENTATION
+from toshi.analytics import encode_id
+from toshi.test.database import requires_database
+from toshi.test.base import AsyncHandlerTest
+from toshi.ethereum.utils import data_decoder
 
 from PIL import Image
 
@@ -62,7 +62,7 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)",
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)",
                               capitalised, TEST_ADDRESS)
 
         boundary = uuid4().hex
@@ -77,8 +77,8 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
-            arow = await con.fetchrow("SELECT * FROM avatars WHERE token_id = $1", TEST_ADDRESS)
-            urow = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
+            urow = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(arow)
         self.assertEqual(arow['img'], files[0][1])
@@ -159,7 +159,7 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         boundary = uuid4().hex
         headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
@@ -172,7 +172,7 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 400)
 
         async with self.pool.acquire() as con:
-            arow = await con.fetchrow("SELECT * FROM avatars WHERE token_id = $1", TEST_ADDRESS)
+            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNone(arow)
 
@@ -186,7 +186,7 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         boundary = uuid4().hex
         headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
@@ -199,7 +199,7 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 400)
 
         async with self.pool.acquire() as con:
-            arow = await con.fetchrow("SELECT * FROM avatars WHERE token_id = $1", TEST_ADDRESS)
+            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNone(arow)
 
@@ -216,11 +216,11 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         # saves a generated file in the /tmp dir to speed up
         # multiple runs of the same test
-        tmpfile = "/tmp/token-testing-large-file-test-2390.jpg"
+        tmpfile = "/tmp/toshi-testing-large-file-test-2390.jpg"
         if os.path.exists(tmpfile):
             jpeg = open(tmpfile, 'rb').read()
         else:

@@ -1,9 +1,9 @@
 from tornado.testing import gen_test
 
-from tokenid.app import urls
-from tokenservices.test.database import requires_database
-from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.ethereum.utils import data_decoder
+from toshiid.app import urls
+from toshi.test.database import requires_database
+from toshi.test.base import AsyncHandlerTest
+from toshi.ethereum.utils import data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -28,7 +28,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self._app.config['reputation'] = {'id': TEST_ADDRESS}
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (token_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
+            await con.execute("INSERT INTO users (toshi_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
 
         score = 4.4
         count = 10
@@ -38,7 +38,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 204)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_PAYMENT_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_PAYMENT_ADDRESS)
         self.assertIsNotNone(row)
         self.assertEqual(float(row['reputation_score']), score)
         self.assertEqual(row['review_count'], count)
@@ -50,7 +50,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self._app.config['reputation'] = {'id': TEST_ADDRESS_2}
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (token_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
+            await con.execute("INSERT INTO users (toshi_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
 
         score = 4.4
         count = 10
@@ -60,7 +60,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 404)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_PAYMENT_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_PAYMENT_ADDRESS)
         self.assertIsNotNone(row)
         self.assertIsNone(row['reputation_score'])
         self.assertEqual(row['review_count'], 0)
@@ -70,7 +70,7 @@ class UserHandlerTest(AsyncHandlerTest):
     async def test_cannot_update_when_no_address_in_config(self):
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (token_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
+            await con.execute("INSERT INTO users (toshi_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
 
         score = 4.4
         count = 10
@@ -81,7 +81,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 404)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_PAYMENT_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_PAYMENT_ADDRESS)
         self.assertIsNotNone(row)
         self.assertIsNone(row['reputation_score'])
         self.assertEqual(row['review_count'], 0)

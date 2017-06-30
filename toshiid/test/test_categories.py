@@ -3,10 +3,10 @@ import names as namegen
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 
-from tokenid.app import urls
-from tokenservices.test.database import requires_database
-from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.ethereum.utils import data_decoder
+from toshiid.app import urls
+from toshi.test.database import requires_database
+from toshi.test.base import AsyncHandlerTest
+from toshi.ethereum.utils import data_decoder
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -67,13 +67,13 @@ class AppCategoriesTest(AsyncHandlerTest):
     @requires_database
     async def test_set_and_get_app_categories(self):
 
-        username = "tokenbot"
-        name = "TokenBot"
+        username = "toshibot"
+        name = "ToshiBot"
 
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_app) VALUES ($1, $2, $3, true)",
                               username, TEST_ADDRESS, name)
             # set inital categories to make sure they're removed
             await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
@@ -102,13 +102,13 @@ class AppCategoriesTest(AsyncHandlerTest):
     @requires_database
     async def test_set_unknown_categories_fails(self):
 
-        username = "tokenbot"
-        name = "TokenBot"
+        username = "toshibot"
+        name = "ToshiBot"
 
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_app) VALUES ($1, $2, $3, true)",
                               username, TEST_ADDRESS, name)
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
@@ -128,13 +128,13 @@ class AppCategoriesTest(AsyncHandlerTest):
         """Makes sure that deleting a category removes the app speicific
         entries for that category"""
 
-        username = "tokenbot"
-        name = "TokenBot"
+        username = "toshibot"
+        name = "ToshiBot"
 
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_app) VALUES ($1, $2, $3, true)",
                               username, TEST_ADDRESS, name)
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
@@ -166,13 +166,13 @@ class AppCategoriesTest(AsyncHandlerTest):
     @requires_database
     async def test_user_search_returns_categories(self):
 
-        username = "tokenbot"
-        name = "TokenBot"
+        username = "toshibot"
+        name = "ToshiBot"
 
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_app) VALUES ($1, $2, $3, true)",
                               username, TEST_ADDRESS, name)
             await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
                                   [(1, TEST_ADDRESS),
@@ -211,23 +211,23 @@ class AppCategoriesTest(AsyncHandlerTest):
     @requires_database
     async def test_user_search_on_categories(self):
 
-        username = "tokenbot"
-        name = "TokenBot"
+        username = "toshibot"
+        name = "ToshiBot"
 
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_app) VALUES ($1, $2, $3, true)",
                               username, TEST_ADDRESS, name)
             await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
                                   [(1, TEST_ADDRESS),
                                    (2, TEST_ADDRESS)])
-            await con.execute("INSERT INTO users (username, token_id, name, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_app) VALUES ($1, $2, $3, true)",
                               username + "1", TEST_PAYMENT_ADDRESS, name)
             await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
                                   [(2, TEST_PAYMENT_ADDRESS),
                                    (3, TEST_PAYMENT_ADDRESS)])
-            await con.execute("INSERT INTO users (username, token_id, name, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_app) VALUES ($1, $2, $3, true)",
                               namegen.get_first_name(), TEST_ADDRESS_2, namegen.get_full_name())
             # TODO: test different insert order
 
@@ -252,7 +252,7 @@ class AppCategoriesTest(AsyncHandlerTest):
         self.assertIn("results", body)
         self.assertEqual(len(body["results"]), 0)
 
-        resp = await self.fetch("/search/apps?query=token&category=2")
+        resp = await self.fetch("/search/apps?query=toshi&category=2")
         self.assertResponseCodeEqual(resp, 200)
         body = json_decode(resp.body)
         self.assertIn("results", body)

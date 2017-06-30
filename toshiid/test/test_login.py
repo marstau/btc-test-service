@@ -1,11 +1,11 @@
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 
-from tokenid.app import urls
-from tokenservices.test.database import requires_database
-from tokenservices.test.base import AsyncHandlerTest
+from toshiid.app import urls
+from toshi.test.database import requires_database
+from toshi.test.base import AsyncHandlerTest
 
-from tokenid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS, TEST_ADDRESS_2
+from toshiid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS, TEST_ADDRESS_2
 
 class LoginHandlerTest(AsyncHandlerTest):
 
@@ -22,10 +22,10 @@ class LoginHandlerTest(AsyncHandlerTest):
 
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'BobSmith', TEST_ADDRESS)
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'JaneDoe', TEST_ADDRESS_2)
-            row1 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
-            row2 = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS_2)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", 'BobSmith', TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", 'JaneDoe', TEST_ADDRESS_2)
+            row1 = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
+            row2 = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS_2)
 
         request_token = 'abcdefghij'
 

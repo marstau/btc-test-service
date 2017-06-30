@@ -10,7 +10,7 @@ env/bin/pip install -r requirements.txt
 ### Running
 
 ```
-DATABASE_URL=postgres://<postgres-dsn> env/bin/python -m tokenid
+DATABASE_URL=postgres://<postgres-dsn> env/bin/python -m toshiid
 ```
 
 ## Running on heroku
@@ -71,5 +71,5 @@ A convinience script exists to run all tests:
 To run a single test, use:
 
 ```
-env/bin/python -m tornado.testing tokenid.test.<test-package>
+env/bin/python -m tornado.testing toshiid.test.<test-package>
 ```

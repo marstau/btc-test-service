@@ -1,1 +1,1 @@
-web: bin/start-stunnel python -m tokenid --port=$PORT --config=$CONFIGFILE
+web: bin/start-stunnel python -m toshiid --port=$PORT --config=$CONFIGFILE

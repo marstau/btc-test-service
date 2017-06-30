@@ -3,14 +3,14 @@ import time
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 
-from tokenid.app import urls
-from tokenid.handlers import generate_username
-from tokenservices.analytics import encode_id
-from tokenservices.test.database import requires_database
-from tokenservices.test.base import AsyncHandlerTest
-from tokenservices.request import sign_request
-from tokenservices.ethereum.utils import data_decoder
-from tokenservices.handlers import TIMESTAMP_EXPIRY
+from toshiid.app import urls
+from toshiid.handlers import generate_username
+from toshi.analytics import encode_id
+from toshi.test.database import requires_database
+from toshi.test.base import AsyncHandlerTest
+from toshi.request import sign_request
+from toshi.ethereum.utils import data_decoder
+from toshi.handlers import TIMESTAMP_EXPIRY
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -48,10 +48,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertFalse(row['is_app'])
@@ -75,10 +75,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertTrue(row['is_app'])
@@ -99,7 +99,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 400)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNone(row)
 
@@ -117,7 +117,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         #self.assertIsNone(row)
         self.assertIsNotNone(row)
@@ -157,7 +157,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS_2)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username, TEST_ADDRESS_2)
 
         # make sure creating a second user with the same username fails
         body = {
@@ -189,7 +189,7 @@ class UserHandlerTest(AsyncHandlerTest):
         username = 'bobsmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username, TEST_ADDRESS)
 
         # make sure settings a username with the same eth address succeeds
         body = {
@@ -212,7 +212,7 @@ class UserHandlerTest(AsyncHandlerTest):
         username = 'bobsmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", 'bobby', TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", 'bobby', TEST_ADDRESS)
 
         # make sure creating a second user with the same username fails
         body = {
@@ -291,7 +291,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = "BobSmith"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id, name) VALUES ($1, $2, $3)", capitalised, TEST_ADDRESS, 'Bob')
+            await con.execute("INSERT INTO users (username, toshi_id, name) VALUES ($1, $2, $3)", capitalised, TEST_ADDRESS, 'Bob')
 
         resp = await self.fetch("/user/{}".format(username), method="GET")
 
@@ -299,7 +299,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
         self.assertEqual(body['username'], capitalised)
 
         # test get user by address
@@ -309,7 +309,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
         self.assertEqual(body['username'], capitalised)
 
         self.assertEqual(body['name'], 'Bob')
@@ -346,7 +346,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         for name in ["\u611B\u611B\u611B", "æø"]:
             body = {
@@ -358,7 +358,7 @@ class UserHandlerTest(AsyncHandlerTest):
             self.assertResponseCodeEqual(resp, 200)
 
             async with self.pool.acquire() as con:
-                row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+                row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
             self.assertIsNotNone(row)
             self.assertEqual(row['name'], body['name'])
@@ -372,8 +372,8 @@ class UserHandlerTest(AsyncHandlerTest):
         username_b_lower = 'userb'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username_a, TEST_ADDRESS)
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username_b, TEST_ADDRESS_2)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username_a, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username_b, TEST_ADDRESS_2)
 
         for new_username in [username_b, username_b_lower]:
             body = {
@@ -385,7 +385,7 @@ class UserHandlerTest(AsyncHandlerTest):
             self.assertResponseCodeEqual(resp, 400)
 
             async with self.pool.acquire() as con:
-                row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+                row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
             self.assertIsNotNone(row)
             self.assertEqual(row['username'], username_a)
@@ -398,7 +398,7 @@ class UserHandlerTest(AsyncHandlerTest):
         username_b = 'UsErA'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", username_a, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", username_a, TEST_ADDRESS)
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
             "username": username_b
@@ -407,7 +407,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertEqual(row['username'], username_b)
@@ -419,7 +419,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "about": "I am neat",
@@ -438,7 +438,7 @@ class UserHandlerTest(AsyncHandlerTest):
             self.assertResponseCodeEqual(resp, 200, "failed updating '{}: {}'".format(key, val))
 
             async with self.pool.acquire() as con:
-                row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+                row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
             self.assertIsNotNone(row)
             self.assertEqual(row[key], val)
@@ -454,7 +454,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "payment_address": TEST_PAYMENT_ADDRESS
@@ -465,7 +465,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertEqual(row['payment_address'], TEST_PAYMENT_ADDRESS)
@@ -477,7 +477,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "is_app": True
@@ -488,7 +488,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertTrue(row['is_app'])
@@ -508,10 +508,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         body = json_decode(resp.body)
 
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
         self.assertIsNone(row['avatar'])
 
         resp = await self.fetch("/user/BobSmith", method="GET")
@@ -530,7 +530,7 @@ class UserHandlerTest(AsyncHandlerTest):
         name = "James"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         body = {
             "custom": {"name": name}
@@ -541,7 +541,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200, resp.body)
 
         async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE token_id = $1", TEST_ADDRESS)
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
         self.assertEqual(row['name'], name)
@@ -554,7 +554,7 @@ class UserHandlerTest(AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, token_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)", capitalised, TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
             row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)

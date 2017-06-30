@@ -1,7 +1,7 @@
 FORMAT: 1A
 HOST: https://identity.service.tokenbrowser.com
 
-# Token Identity Service
+# Toshi Identity Service
 
 This service stores user identities and information associated with those users. Users can be looked up by `uuid` or `username`.
 
@@ -11,8 +11,8 @@ In the long run, we would like to migrate this service to a decentalized identit
 # Group Users
 ## User Registration [/v1/user]
 
-Used to register a new username and associate it with a token id.
-The token id address is extracted from the signature.
+Used to register a new username and associate it with a toshi id.
+The toshi id address is extracted from the signature.
 
 ### Register a user [POST]
 
@@ -20,9 +20,9 @@ The token id address is extracted from the signature.
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
     + Body
 
@@ -36,7 +36,7 @@ The token id address is extracted from the signature.
 + Response 200 (application/json)
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -53,7 +53,7 @@ The token id address is extracted from the signature.
             "errors": [
                 {
                     "id": "already_registered",
-                    "message": "The provided token id address is already registered"
+                    "message": "The provided toshi id address is already registered"
                 }
             ]
         }
@@ -97,14 +97,14 @@ The token id address is extracted from the signature.
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
 + Response 200 (application/json)
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": null,
             "username": "testuser",
             "is_app": false,
@@ -134,9 +134,9 @@ Used when the registered id represents an app/bot, used by the services to know 
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
     + Body
 
@@ -148,7 +148,7 @@ Used when the registered id represents an app/bot, used by the services to know 
 + Response 200 (application/json)
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "name": null,
@@ -185,9 +185,9 @@ Used to update a user's profile.
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
     + Body
 
@@ -200,15 +200,15 @@ Used to update a user's profile.
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
     + Body
 
         {
-            "username": "tokenbot",
-            "name": "TokenBot",
+            "username": "toshibot",
+            "name": "ToshiBot",
             "is_app": true,
             "categories": ["social", "cats"]
         }
@@ -219,9 +219,9 @@ Used to update a user's profile.
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
         Content-Type: multipart/form-data; boundary=------------boundary
 
     + Body
@@ -231,7 +231,7 @@ Used to update a user's profile.
 + Response 200 (application/json)
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -245,11 +245,11 @@ Used to update a user's profile.
 + Response 200 (application/json)
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
-            "username": "tokenbot",
+            "username": "toshibot",
             "is_app": true,
-            "name": "TokenBot",
+            "name": "ToshiBot",
             "location": null,
             "public": false,
             "categories": [{"id": 1, "tag": "social", "name": "Social", {"id": 2, "tag": "cats", "name": "Cats"}]
@@ -298,7 +298,7 @@ Used to update a user's profile.
 + Response 200 (application/json)
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -327,9 +327,9 @@ Allows the user to update their profile
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
     + Body
 
@@ -344,9 +344,9 @@ Allows the user to update their profile
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
         Content-Type: multipart/form-data; boundary=------------boundary
 
     + Body
@@ -356,7 +356,7 @@ Allows the user to update their profile
 + Response 200 (application/json)
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -443,7 +443,7 @@ Used to retrieve a current timestamp from the server for use in signing other re
           "username": "bobsmith",
           "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
           "is_app": false,
-          "token_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+          "toshi_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
           "about": null,
           "avatar": null,
           "name": null,
@@ -457,7 +457,7 @@ Used to retrieve a current timestamp from the server for use in signing other re
 ## Apps [/v1/search/apps/{?query,offset,limit,top,featured,recent,category}]
 ### Search apps by partial username [GET]
 + Parameters
-    + query: `tokenb` (string, optional) - Partial name/username to search for
+    + query: `toshib` (string, optional) - Partial name/username to search for
     + payment_address: `0x056db290f8ba3250ca64a45d16284d04bc6f5fbf` (string, optional) - Returns users with a payment address matching the requested address, if present all other parameters are ignored.
     + top: `true` (boolean, optional) - If present, will sort by reputation score. Only takes effect is `query` is not supplied.
     + featured: `true` (boolean, optional) - If present and `true`, will return only featured apps, If present and `false` will return only non-featured apps.
@@ -480,10 +480,10 @@ Used to retrieve a current timestamp from the server for use in signing other re
       "offset": 0,
       "results": [
         {
-          "username": "tokenbot",
+          "username": "toshibot",
           "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
           "is_app": true,
-          "token_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+          "toshi_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
           "about": null,
           "avatar": null,
           "name": null,
@@ -495,7 +495,7 @@ Used to retrieve a current timestamp from the server for use in signing other re
           "public": false
         }
       ],
-      "query": "query=tokenb"
+      "query": "query=toshib"
     }
 
 
@@ -517,9 +517,9 @@ If sent unsigned, this will wait for a signed request to generate an `auth_token
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
 + Response 204 (application/json)
 
@@ -547,7 +547,7 @@ After being issues an `auth_token` the client would sent that token to the servi
     + Body
 
         {
-            "token_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "is_app": false,
@@ -628,14 +628,14 @@ Used to send a report about the user/app
 
     + Headers
 
-        Token-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
-        Token-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
-        Token-Timestamp: 1480077346
+        Toshi-ID-Address: 0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a
+        Toshi-Signature: 0xc39a479a92fe8d626324ff82a33684610ecd6b50714f59542a1ea558220ec6246a9193dd481078417b3b44d55933989587459d3dd50295d4da67d6580ac8646801
+        Toshi-Timestamp: 1480077346
 
     + Body
 
         {
-            "token_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+            "toshi_id": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "details": "app is fraudulent",
         }
 
@@ -703,5 +703,5 @@ Important: Different error types (id) can be added and removed over time so you 
 A User object has the following attributes:
 
 * username - with format `^[a-zA-Z][a-zA-Z0-9_]{2,59}$`
-* token_id - ethereum address associated with the private key the user is using for identification
+* toshi_id - ethereum address associated with the private key the user is using for identification
 * profile - user specified profile data
