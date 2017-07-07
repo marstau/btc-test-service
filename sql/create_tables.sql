@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
     location VARCHAR,
     reputation_score DECIMAL,
     review_count INTEGER DEFAULT 0,
+    average_rating DECIMAL DEFAULT 0,
     is_public BOOLEAN DEFAULT FALSE,
     went_public TIMESTAMP WITHOUT TIME ZONE,
     tsv TSVECTOR,
@@ -81,4 +82,4 @@ CREATE TABLE IF NOT EXISTS app_categories (
     PRIMARY KEY (category_id, toshi_id)
 );
 
-UPDATE database_version SET version_number = 19;
+UPDATE database_version SET version_number = 20;

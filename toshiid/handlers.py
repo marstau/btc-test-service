@@ -52,6 +52,7 @@ def user_row_for_json(request, row):
         'is_app': row['is_app'],
         'public': row['is_public'] if not row['is_app'] else False,
         'reputation_score': float(row['reputation_score']) if row['reputation_score'] is not None else None,
+        'average_rating': float(row['average_rating']) if row['average_rating'] is not None else 0,
         'review_count': row['review_count']
     }
     if rval['avatar'].startswith("/"):
@@ -832,27 +833,33 @@ class ReputationUpdateHandler(RequestVerificationMixin, AnalyticsMixin, Database
         if address != self.application.config['reputation']['id']:
             raise HTTPError(404)
 
-        if not all(x in self.json for x in ['address', 'score', 'count']):
+        if not all(x in self.json for x in ['toshi_id', 'reputation_score', 'review_count', 'average_rating']):
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
 
-        toshi_id = self.json['address']
+        toshi_id = self.json['toshi_id']
         if not validate_address(toshi_id):
-            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_address', 'message': 'Invalid Address'}]})
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_toshi_id', 'message': 'Invalid Toshi Id'}]})
 
-        count = self.json['count']
+        count = self.json['review_count']
         count = parse_int(count)
         if count is None:
-            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_count', 'message': 'Invalid Count'}]})
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_review_count', 'message': 'Invalid Review Count'}]})
 
-        score = self.json['score']
+        score = self.json['reputation_score']
         if isinstance(score, str) and validate_decimal_string(score):
             score = Decimal(score)
         if not isinstance(score, (int, float, Decimal)):
-            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_score', 'message': 'Invalid Score'}]})
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_reputation_score', 'message': 'Invalid Repuration Score'}]})
+
+        rating = self.json['average_rating']
+        if isinstance(rating, str) and validate_decimal_string(rating):
+            rating = Decimal(rating)
+        if not isinstance(score, (int, float, Decimal)):
+            raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_average_rating', 'message': 'Invalid Average Rating'}]})
 
         async with self.db:
-            await self.db.execute("UPDATE users SET reputation_score = $1, review_count = $2 WHERE toshi_id = $3",
-                                  score, count, toshi_id)
+            await self.db.execute("UPDATE users SET reputation_score = $1, review_count = $2, average_rating = $3 WHERE toshi_id = $4",
+                                  score, count, rating, toshi_id)
             await self.db.commit()
 
         self.set_status(204)

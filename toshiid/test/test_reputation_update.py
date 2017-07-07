@@ -32,8 +32,9 @@ class UserHandlerTest(AsyncHandlerTest):
 
         score = 4.4
         count = 10
+        rating = 4.9
         resp = await self.fetch_signed("/reputation", signing_key=TEST_PRIVATE_KEY, method="POST",
-                                       body={'address': TEST_PAYMENT_ADDRESS, "score": score, "count": count})
+                                       body={'toshi_id': TEST_PAYMENT_ADDRESS, "reputation_score": score, "review_count": count, "average_rating": rating})
 
         self.assertResponseCodeEqual(resp, 204)
 
@@ -42,6 +43,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertIsNotNone(row)
         self.assertEqual(float(row['reputation_score']), score)
         self.assertEqual(row['review_count'], count)
+        self.assertEqual(float(row['average_rating']), rating)
 
     @gen_test
     @requires_database
@@ -54,8 +56,9 @@ class UserHandlerTest(AsyncHandlerTest):
 
         score = 4.4
         count = 10
+        rating = 4.9
         resp = await self.fetch_signed("/reputation", signing_key=TEST_PRIVATE_KEY, method="POST",
-                                       body={'address': TEST_PAYMENT_ADDRESS, "score": score, "count": count})
+                                       body={'address': TEST_PAYMENT_ADDRESS, "reputation_score": score, "review_count": count, "average_rating": rating})
 
         self.assertResponseCodeEqual(resp, 404)
 
@@ -64,6 +67,7 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertIsNotNone(row)
         self.assertIsNone(row['reputation_score'])
         self.assertEqual(row['review_count'], 0)
+        self.assertEqual(float(row['average_rating']), 0)
 
     @gen_test
     @requires_database
@@ -74,9 +78,10 @@ class UserHandlerTest(AsyncHandlerTest):
 
         score = 4.4
         count = 10
+        rating = 4.9
 
         resp = await self.fetch_signed("/reputation", signing_key=TEST_PRIVATE_KEY, method="POST",
-                                       body={'address': TEST_PAYMENT_ADDRESS, "score": score, "count": count})
+                                       body={'address': TEST_PAYMENT_ADDRESS, "reputation_score": score, "review_count": count, "average_rating": rating})
 
         self.assertResponseCodeEqual(resp, 404)
 
@@ -85,3 +90,4 @@ class UserHandlerTest(AsyncHandlerTest):
         self.assertIsNotNone(row)
         self.assertIsNone(row['reputation_score'])
         self.assertEqual(row['review_count'], 0)
+        self.assertEqual(float(row['average_rating']), 0)

@@ -44,7 +44,10 @@ The toshi id address is extracted from the signature.
             "about": "I'm a digital Dingus",
             "avatar": null,
             "location": null,
-            "public": true
+            "public": true,
+            "reputation_score": null,
+            "review_count": 0,
+            "average_rating": 0
         }
 
 + Response 400 (application/json)
@@ -112,7 +115,10 @@ The toshi id address is extracted from the signature.
             "about": null,
             "avatar": null,
             "location": null,
-            "public": true
+            "public": true,
+            "reputation_score": null,
+            "review_count": 0,
+            "average_rating": 0
         }
 
 + Response 400 (application/json)
@@ -156,7 +162,10 @@ Used when the registered id represents an app/bot, used by the services to know 
             "about": null,
             "avatar": null,
             "location": null
-            "public": true
+            "public": true,
+            "reputation_score": null,
+            "review_count": 0,
+            "average_rating": 0
         }
 
 + Response 400 (application/json)
@@ -239,7 +248,10 @@ Used to update a user's profile.
             "name": "Dingus McDingusface",
             "avatar": "<url for new avatar>",
             "location": null,
-            "public": true
+            "public": true,
+            "reputation_score": 2.3,
+            "review_count": 10,
+            "average_rating": 4.5
         }
 
 + Response 200 (application/json)
@@ -252,7 +264,10 @@ Used to update a user's profile.
             "name": "ToshiBot",
             "location": null,
             "public": false,
-            "categories": [{"id": 1, "tag": "social", "name": "Social", {"id": 2, "tag": "cats", "name": "Cats"}]
+            "categories": [{"id": 1, "tag": "social", "name": "Social", {"id": 2, "tag": "cats", "name": "Cats"}],
+            "reputation_score": 2.3,
+            "review_count": 10,
+            "average_rating": 4.5
         }
 
 + Response 400 (application/json)
@@ -306,7 +321,10 @@ Used to update a user's profile.
             "about": null,
             "avatar": null,
             "location": null,
-            "public": true
+            "public": true,
+            "reputation_score": 2.3,
+            "review_count": 10,
+            "average_rating": 4.5
         }
 
 + Response 404 (application/json)
@@ -364,7 +382,10 @@ Allows the user to update their profile
             "about": null,
             "name": "Mr Tester",
             "location": null,
-            "public": true
+            "public": true,
+            "reputation_score": 2.3,
+            "review_count": 10,
+            "average_rating": 4.5
         }
 
 + Response 404 (application/json)
@@ -448,7 +469,10 @@ Used to retrieve a current timestamp from the server for use in signing other re
           "avatar": null,
           "name": null,
           "location": null,
-          "public": true
+          "public": true,
+          "reputation_score": 2.3,
+          "review_count": 10,
+          "average_rating": 4.5
         }
       ],
       "query": "query=bobs"
@@ -492,7 +516,10 @@ Used to retrieve a current timestamp from the server for use in signing other re
             {"id": 1, "tag": "social", "name": "Social"},
             {"id": 2, "tag": "cats", "name": "Cats"}
           ]
-          "public": false
+          "public": false,
+          "reputation_score": 2.3,
+          "review_count": 10,
+          "average_rating": 4.5
         }
       ],
       "query": "query=toshib"
@@ -555,7 +582,10 @@ After being issues an `auth_token` the client would sent that token to the servi
             "avatar": null,
             "name": null,
             "location": null,
-            "public": true
+            "public": true,
+            "reputation_score": 2.3,
+            "review_count": 10,
+            "average_rating": 4.5
         }
 
 # Group Avatars

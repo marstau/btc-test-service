@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN average_rating DECIMAL DEFAULT 0;
