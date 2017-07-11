@@ -729,7 +729,7 @@ class SimpleFileHandler(BaseHandler):
         if include_body:
             self.write(data)
 
-class IdenticonHandler(SimpleFileHandler):
+class IdenticonHandler(DatabaseMixin, SimpleFileHandler):
 
     FORMAT_MAP = {
         'PNG': 'image/png',
@@ -745,11 +745,30 @@ class IdenticonHandler(SimpleFileHandler):
             format = 'JPEG'
         if format not in self.FORMAT_MAP.keys():
             raise HTTPError(404)
-        data = blockies.create(address, size=8, scale=12, format=format.upper())
-        hasher = hashlib.md5()
-        hasher.update(data)
-        cache_hash = hasher.hexdigest()
-        await self.handle_file_response(data, self.FORMAT_MAP[format], cache_hash, datetime.datetime(2017, 1, 1))
+
+        identicon_pkey = "{}_identicon_{}".format(address, format)
+        async with self.db:
+            # add suffix to id for cached identicons
+            row = await self.db.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", identicon_pkey)
+
+        if row is None:
+            data = blockies.create(address, size=8, scale=12, format=format.upper())
+            hasher = hashlib.md5()
+            hasher.update(data)
+            cache_hash = hasher.hexdigest()
+            async with self.db:
+                await self.db.execute("INSERT INTO avatars (toshi_id, img, hash, format) VALUES ($1, $2, $3, $4) "
+                                      "ON CONFLICT (toshi_id) DO UPDATE "
+                                      "SET img = EXCLUDED.img, hash = EXCLUDED.hash, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
+                                      identicon_pkey, data, cache_hash, format)
+                await self.db.commit()
+            last_modified = datetime.datetime.utcnow()
+        else:
+            data = row['img']
+            cache_hash = row['hash']
+            last_modified = row['last_modified']
+
+        await self.handle_file_response(data, self.FORMAT_MAP[format], cache_hash, last_modified)
 
 class AvatarHandler(DatabaseMixin, SimpleFileHandler):
 
