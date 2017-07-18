@@ -154,6 +154,37 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    async def test_update_user_avatar_with_specific_toshi_id_handler(self):
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, toshi_id) VALUES ($1, $2)",
+                              capitalised, TEST_ADDRESS)
+
+        boundary = uuid4().hex
+        headers = {'Content-Type': 'multipart/form-data; boundary={}'.format(boundary)}
+        png = blockies.create(TEST_PAYMENT_ADDRESS, size=8, scale=12, format='PNG')
+        files = [('image.png', png)]
+        body = body_producer(boundary, files)
+
+        resp = await self.fetch_signed("/user/{}".format(TEST_ADDRESS), signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                       body=body, headers=headers)
+
+        self.assertResponseCodeEqual(resp, 200)
+
+        async with self.pool.acquire() as con:
+            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
+            urow = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(arow)
+        self.assertEqual(arow['img'], files[0][1])
+        self.assertIsNotNone(urow)
+        self.assertIsNotNone(urow['avatar'])
+        self.assertEqual(urow['avatar'], "/avatar/{}.png".format(TEST_ADDRESS))
+
+    @gen_test
+    @requires_database
     async def test_send_bad_data(self):
 
         capitalised = 'BobSmith'

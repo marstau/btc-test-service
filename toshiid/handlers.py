@@ -408,7 +408,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
     def put(self):
         toshi_id = self.verify_request()
 
-        if self.request.headers['Content-Type'] != 'application/json' and not self.request.files:
+        if not self.request.headers['Content-Type'].startswith('application/json') and not self.request.files:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Expected application/json or multipart/form-data'}]})
 
         # check for superuser update
@@ -492,13 +492,19 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         request_address = self.verify_request()
 
+        if not self.request.headers['Content-Type'].startswith('application/json') and not self.request.files:
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Expected application/json or multipart/form-data'}]})
+
         if request_address != address_to_update:
 
             # check for superuser update
             if not self.is_superuser(request_address):
                 raise JSONHTTPError(401, body={'errors': [{'id': 'permission_denied', 'message': 'Permission Denied'}]})
 
-        return await self.update_user(address_to_update)
+        if self.request.files:
+            return await self.update_user_avatar(address_to_update)
+        else:
+            return await self.update_user(address_to_update)
 
 
 class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
