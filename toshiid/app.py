@@ -40,6 +40,13 @@ class Application(toshi.web.Application):
         if 'REPUTATION_SERVICE_ID' in os.environ:
             config['reputation'] = {'id': os.environ['REPUTATION_SERVICE_ID'].lower()}
 
+        if 'SUPERUSER_TOSHI_ID' in os.environ:
+            # using a dict because configparser doesn't support lists,
+            # and having the toshi id's as keys lets us use `in`.
+            config['superusers'] = {
+                toshi_id.strip(): 1 for toshi_id in os.environ['SUPERUSER_TOSHI_ID'].lower().split(',')
+            }
+
         return config
 
 def main():

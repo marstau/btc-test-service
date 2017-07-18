@@ -152,6 +152,10 @@ def process_image(data, mime_type):
 
 class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
+    def is_superuser(self, toshi_id):
+        return 'superusers' in self.application.config and \
+            toshi_id in self.application.config['superusers']
+
     async def update_user(self, toshi_id):
 
         try:
@@ -407,6 +411,16 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         if self.request.headers['Content-Type'] != 'application/json' and not self.request.files:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Expected application/json or multipart/form-data'}]})
 
+        # check for superuser update
+        if 'toshi_id' in self.json:
+
+            specific_toshi_id = self.json.pop('toshi_id').lower()
+
+            if toshi_id != specific_toshi_id and not self.is_superuser(toshi_id):
+                raise JSONHTTPError(401, body={'errors': [{'id': 'permission_denied', 'message': 'Permission Denied'}]})
+
+            toshi_id = specific_toshi_id
+
         if self.request.files:
             return self.update_user_avatar(toshi_id)
         else:
@@ -480,7 +494,9 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         if request_address != address_to_update:
 
-            raise JSONHTTPError(401, body={'errors': [{'id': 'permission_denied', 'message': 'Permission Denied'}]})
+            # check for superuser update
+            if not self.is_superuser(request_address):
+                raise JSONHTTPError(401, body={'errors': [{'id': 'permission_denied', 'message': 'Permission Denied'}]})
 
         return await self.update_user(address_to_update)
 
