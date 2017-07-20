@@ -562,6 +562,10 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
         if recent is True and apps is True:
             featured = True
 
+        # force featured if top + apps
+        if top is True and apps is True:
+            featured = True
+
         # force remove public if apps is True
         if apps is True:
             public = None

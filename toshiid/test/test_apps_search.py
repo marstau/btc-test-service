@@ -206,7 +206,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             insert_vals.append((private_key_to_address(key), username, name, None, 0))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_app) VALUES ($1, $2, $3, $4, $5, TRUE)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_app, featured) VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)",
                 insert_vals)
         resp = await self.fetch("/search/apps?query=Toshi&limit={}".format(k + 1), method="GET")
         self.assertEqual(resp.code, 200)
