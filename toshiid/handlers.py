@@ -825,9 +825,14 @@ class ReportHandler(RequestVerificationMixin, AnalyticsMixin, DatabaseMixin, Bas
 
         reporter_toshi_id = self.verify_request()
 
-        if 'toshi_id' not in self.json or self.json['toshi_id'] == reporter_toshi_id:
+        reportee_toshi_id = None
+        if 'toshi_id' in self.json:
+            reportee_toshi_id = self.json['toshi_id']
+        elif 'token_id' in self.json:
+            reportee_toshi_id = self.json['token_id']
+
+        if reportee_toshi_id is None or reportee_toshi_id == reporter_toshi_id:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-        reportee_toshi_id = self.json['toshi_id']
 
         if not validate_address(reportee_toshi_id):
             raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_toshi_id', 'message': 'Invalid Toshi ID'}]})

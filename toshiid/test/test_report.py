@@ -61,3 +61,19 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertEqual(len(row), 1)
         self.assertEqual(row[0]['details'], '')
+
+    @gen_test
+    @requires_database
+    async def test_report_user_backwards_compat(self):
+
+        resp = await self.fetch_signed("/report", signing_key=TEST_PRIVATE_KEY, method="POST",
+                                       body={'token_id': TEST_ADDRESS_2})
+        self.assertResponseCodeEqual(resp, 204)
+
+    @gen_test
+    @requires_database
+    async def test_unable_to_report_self(self):
+
+        resp = await self.fetch_signed("/report", signing_key=TEST_PRIVATE_KEY, method="POST",
+                                       body={'toshi_id': TEST_ADDRESS})
+        self.assertResponseCodeEqual(resp, 400)
