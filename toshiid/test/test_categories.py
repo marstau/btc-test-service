@@ -17,6 +17,9 @@ TEST_ADDRESS_2 = "0x7f0294b53af29ded2b5fa04b6225a1bc334a41e6"
 
 class AppCategoriesTest(AsyncHandlerTest):
 
+    def setUp(self):
+        super().setUp(extraconf={'general': {'apps_dont_require_websocket': True}})
+
     def get_urls(self):
         return urls
 

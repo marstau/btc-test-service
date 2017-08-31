@@ -1,11 +1,11 @@
+import asyncio
 import os
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 from datetime import datetime
 
 from toshiid.app import urls
-from toshi.analytics import encode_id
-from toshi.test.base import AsyncHandlerTest
+from toshi.test.base import AsyncHandlerTest, ToshiWebSocketJsonRPCClient
 from toshi.test.database import requires_database
 from toshi.ethereum.utils import private_key_to_address
 
@@ -13,6 +13,9 @@ TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
 TEST_PAYMENT_ADDRESS = "0x1dd7ae837946ac30048e9d9058e007fbbc43312c"
 
 class AppsHandlerTest(AsyncHandlerTest):
+
+    def setUp(self):
+        super().setUp(extraconf={'general': {'apps_dont_require_websocket': True}})
 
     def get_urls(self):
         return urls
@@ -96,6 +99,9 @@ class AppsHandlerTest(AsyncHandlerTest):
 
 
 class SearchAppsHandlerTest(AsyncHandlerTest):
+
+    def setUp(self):
+        super().setUp(extraconf={'general': {'apps_dont_require_websocket': True}})
 
     def get_urls(self):
         return urls
@@ -343,3 +349,103 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         # ensure we got a tracking event
         self.assertEqual((await self.next_tracking_event())[0], None)
+
+
+class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
+
+    def setUp(self):
+        super().setUp(extraconf={'general': {'apps_dont_require_websocket': False}})
+
+    def get_urls(self):
+        return urls
+
+    async def websocket_connect(self, signing_key):
+        con = ToshiWebSocketJsonRPCClient(self.get_url("/v1/ws"), signing_key=signing_key)
+        await con.connect()
+        return con
+
+    def fetch(self, url, **kwargs):
+        return super().fetch("/v1{}".format(url), **kwargs)
+
+    @gen_test
+    @requires_database
+    async def test_username_query(self):
+        username = "ToshiBot"
+        positive_query = 'Tos'
+
+        private_key = os.urandom(32)
+        toshi_id = private_key_to_address(private_key)
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
+                              username, username, toshi_id, True)
+
+        resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
+
+        con = await self.websocket_connect(private_key)
+
+        resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+    @gen_test
+    @requires_database
+    async def test_featured_query(self):
+
+        positive_query = 'bot'
+
+        setup_data = [
+            ("ToshiBotA", "toshi bot a", os.urandom(32), False),
+            ("ToshiBotB", "toshi bot b", os.urandom(32), False),
+            ("FeaturedBotA", "featured toshi bot a", os.urandom(32), True),
+            ("FeaturedBotB", "featured toshi bot b", os.urandom(32), True),
+            ("FeaturedBotC", "featured toshi bot c", os.urandom(32), True)
+        ]
+
+        cons = []
+        for username, name, private_key, featured in setup_data:
+            async with self.pool.acquire() as con:
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app) VALUES ($1, $2, $3, $4, $5)",
+                                  username, name, private_key_to_address(private_key), featured, True)
+
+            con = await self.websocket_connect(private_key)
+            cons.append(con)
+
+        resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 5)
+
+        resp = await self.fetch("/search/apps?query={}&featured".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 3)
+
+        for con in cons[:3]:
+            con.close()
+        await asyncio.sleep(0.1)
+
+        resp = await self.fetch("/search/apps?query={}&featured".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 2)
+
+        cons[3].close()
+        await asyncio.sleep(0.1)
+
+        resp = await self.fetch("/search/apps?query={}&featured".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+        cons[4].close()
+        await asyncio.sleep(0.1)
+
+        resp = await self.fetch("/search/apps?query={}&featured".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)

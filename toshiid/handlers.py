@@ -558,17 +558,21 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
         else:
             featured = None
 
-        # force featured if recent + apps
-        if recent is True and apps is True:
-            featured = True
-
-        # force featured if top + apps
-        if top is True and apps is True:
-            featured = True
-
-        # force remove public if apps is True
         if apps is True:
+            # force remove public if apps is True
             public = None
+            # force featured if recent + apps
+            if recent is True:
+                featured = True
+            # force featured if top + apps
+            elif top is True:
+                featured = True
+            if self.application.config['general'].getboolean('apps_dont_require_websocket'):
+                check_connected = False
+            else:
+                check_connected = True
+        else:
+            check_connected = False
 
         if query is None:
             sql = ("SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
@@ -604,6 +608,8 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     if featured is not None:
                         sql += "AND featured = ${} ".format(len(sql_args) + 1)
                         sql_args.append(featured)
+                    if apps is True and check_connected is True:
+                        sql += "AND websocket_connection_count > 0"
                 elif public is not None:
                     sql += "WHERE is_public = ${} AND is_app = false ".format(len(sql_args) + 1)
                     sql_args.append(public)
@@ -642,6 +648,8 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             if apps is not None:
                 where_q.append("is_app = ${}".format(len(sql_args) + 1))
                 sql_args.append(apps)
+                if apps is True and check_connected is True:
+                    where_q.append("websocket_connection_count > 0")
                 if featured is not None:
                     where_q.append("featured = ${}".format(len(sql_args) + 1))
                     sql_args.append(featured)

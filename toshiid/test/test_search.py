@@ -4,7 +4,6 @@ from tornado.escape import json_decode, json_encode
 from tornado.testing import gen_test
 
 from toshiid.app import urls
-from toshi.analytics import encode_id
 from toshi.test.base import AsyncHandlerTest
 from toshi.test.database import requires_database
 from toshi.ethereum.utils import data_encoder, private_key_to_address
@@ -14,6 +13,9 @@ from urllib.parse import quote_plus
 from toshiid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS
 
 class SearchUserHandlerTest(AsyncHandlerTest):
+
+    def setUp(self):
+        super().setUp(extraconf={'general': {'apps_dont_require_websocket': True}})
 
     def get_urls(self):
         return urls

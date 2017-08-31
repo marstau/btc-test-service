@@ -1,6 +1,7 @@
 import toshi.web
 import os
 from . import handlers
+from . import websocket
 from . import login
 from toshi.handlers import GenerateTimestamp
 
@@ -29,7 +30,10 @@ urls = [
     (r"^/avatar/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.AvatarHandler),
 
     # reputation update endpoint
-    (r"^/v1/reputation/?$", handlers.ReputationUpdateHandler)
+    (r"^/v1/reputation/?$", handlers.ReputationUpdateHandler),
+
+    # websocket
+    (r"^/v1/ws/?$", websocket.WebsocketHandler),
 ]
 
 class Application(toshi.web.Application):
@@ -46,6 +50,11 @@ class Application(toshi.web.Application):
             config['superusers'] = {
                 toshi_id.strip(): 1 for toshi_id in os.environ['SUPERUSER_TOSHI_ID'].lower().split(',')
             }
+
+        if 'APPS_DONT_REQUIRE_WEBSOCKET' in os.environ:
+            config['general']['apps_dont_require_websocket'] = os.environ['APPS_DONT_REQUIRE_WEBSOCKET']
+        elif 'apps_dont_require_websocket' not in config['general']:
+            config['general']['apps_dont_require_websocket'] = 'false'
 
         return config
 
