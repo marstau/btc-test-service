@@ -10,6 +10,7 @@ from toshi.test.database import requires_database
 from toshi.ethereum.utils import private_key_to_address
 
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
+TEST_PAYMENT_ADDRESS = "0x1dd7ae837946ac30048e9d9058e007fbbc43312c"
 
 class AppsHandlerTest(AsyncHandlerTest):
 
@@ -325,3 +326,20 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             previous_count = user['review_count']
             previous_rating = rep
             previous_date = created
+
+    @gen_test
+    @requires_database
+    async def test_payment_address_query(self):
+        username = "ToshiBot"
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, payment_address) VALUES ($1, $2, $3, $4, $5)",
+                              username, username, TEST_ADDRESS, True, TEST_PAYMENT_ADDRESS)
+
+        resp = await self.fetch("/search/apps?payment_address={}".format(TEST_PAYMENT_ADDRESS), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], None)

@@ -582,6 +582,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             sql_args = ['en']
             if payment_address:
                 sql += "WHERE payment_address = ${} ".format(len(sql_args) + 1)
+                sql_args.append(payment_address)
                 if apps is not None:
                     sql += "AND is_app = ${} AND blocked = false ".format(len(sql_args) + 1)
                     sql_args.append(apps)
@@ -596,7 +597,6 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     sql += "ORDER BY payment_address, created DESC, name, username "
                 else:
                     sql += "ORDER BY payment_address, name, username "
-                sql_args.append(payment_address)
             else:
                 if apps is not None:
                     sql += "WHERE is_app = ${} AND blocked = false ".format(len(sql_args) + 1)
