@@ -27,6 +27,12 @@ class HousekeepingApplication(ConfigurationManager):
 
         configure_logger(log)
 
+    def process_config(self):
+        config = super().process_config()
+        config['database']['max_size'] = '1'
+        config['database']['min_size'] = '1'
+        return config
+
     def start(self):
         self.ioloop.add_callback(self.run_housekeeping)
 
