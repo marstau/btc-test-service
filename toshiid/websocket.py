@@ -1,4 +1,5 @@
 import os
+import uuid
 
 import tornado.websocket
 import tornado.ioloop
@@ -16,9 +17,14 @@ class ToshiIdJsonRPCHandler(JsonRPCBase, DatabaseMixin):
         self.application = application
         self.request = request
 
-class WebsocketHandler(tornado.websocket.WebSocketHandler, DatabaseMixin, RequestVerificationMixin):
+class WebsocketHandler(tornado.websocket.WebSocketHandler, RequestVerificationMixin):
 
     KEEP_ALIVE_TIMEOUT = 30
+    SESSION_CLOSE_TIMEOUT = 30
+
+    @property
+    def connection_pool(self):
+        return self.application.connection_pool
 
     @tornado.web.asynchronous
     def get(self, *args, **kwargs):
@@ -30,6 +36,7 @@ class WebsocketHandler(tornado.websocket.WebSocketHandler, DatabaseMixin, Reques
 
         self.io_loop = tornado.ioloop.IOLoop.current()
         self.schedule_ping()
+        self.session_id = uuid.uuid4().hex
         self.io_loop.add_callback(self.set_connected)
 
     def schedule_ping(self):
@@ -43,11 +50,13 @@ class WebsocketHandler(tornado.websocket.WebSocketHandler, DatabaseMixin, Reques
 
     def on_pong(self, data):
         self.schedule_ping()
+        self.io_loop.add_callback(self.set_connected)
 
     def on_close(self):
         if hasattr(self, '_pingcb'):
             self.io_loop.remove_timeout(self._pingcb)
-        self.io_loop.add_callback(self.set_not_connected)
+        # only remove after some time to give some leway in brefiely disconnected client
+        self.io_loop.call_later(self.SESSION_CLOSE_TIMEOUT, self.set_not_connected)
 
     async def _on_message(self, message):
         try:
@@ -66,16 +75,14 @@ class WebsocketHandler(tornado.websocket.WebSocketHandler, DatabaseMixin, Reques
 
     async def set_connected(self):
 
-        async with self.db:
-            await self.db.execute("UPDATE users SET websocket_connection_count = websocket_connection_count + 1 "
-                                  "WHERE toshi_id = $1",
-                                  self.toshi_id)
-            await self.db.commit()
+        async with self.connection_pool.acquire() as con:
+            await con.execute("INSERT INTO websocket_sessions (websocket_session_id, toshi_id) VALUES ($1, $2) "
+                              "ON CONFLICT (websocket_session_id) DO UPDATE "
+                              "SET last_seen = (now() AT TIME ZONE 'utc')",
+                              self.session_id, self.toshi_id)
 
     async def set_not_connected(self):
 
-        async with self.db:
-            await self.db.execute("UPDATE users SET websocket_connection_count = websocket_connection_count - 1 "
-                                  "WHERE toshi_id = $1",
-                                  self.toshi_id)
-            await self.db.commit()
+        async with self.connection_pool.acquire() as con:
+            await con.execute("DELETE FROM websocket_sessions WHERE websocket_session_id = $1",
+                              self.session_id)

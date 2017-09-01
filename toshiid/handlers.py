@@ -584,6 +584,8 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                    "AND category_names.language = $1 "
                    "LEFT JOIN categories ON app_categories.category_id = categories.category_id ")
             sql_args = ['en']
+            if check_connected:
+                sql += "INNER JOIN websocket_sessions ON users.toshi_id = websocket_sessions.toshi_id "
             if payment_address:
                 sql += "WHERE payment_address = ${} ".format(len(sql_args) + 1)
                 sql_args.append(payment_address)
@@ -608,8 +610,6 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     if featured is not None:
                         sql += "AND featured = ${} ".format(len(sql_args) + 1)
                         sql_args.append(featured)
-                    if apps is True and check_connected is True:
-                        sql += "AND websocket_connection_count > 0"
                 elif public is not None:
                     sql += "WHERE is_public = ${} AND is_app = false ".format(len(sql_args) + 1)
                     sql_args.append(public)
@@ -648,8 +648,6 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             if apps is not None:
                 where_q.append("is_app = ${}".format(len(sql_args) + 1))
                 sql_args.append(apps)
-                if apps is True and check_connected is True:
-                    where_q.append("websocket_connection_count > 0")
                 if featured is not None:
                     where_q.append("featured = ${}".format(len(sql_args) + 1))
                     sql_args.append(featured)
@@ -669,14 +667,17 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                    "(SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
                    "array_agg(categories.tag) AS category_tags, "
                    "array_agg(category_names.name) AS category_names "
-                   "FROM users "
+                   "FROM users {}"
                    "LEFT JOIN app_categories ON users.toshi_id = app_categories.toshi_id "
                    "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
                    "AND category_names.language = $1 "
                    "LEFT JOIN categories ON app_categories.category_id = categories.category_id "
                    ", TO_TSQUERY($4) AS q "
                    "WHERE (tsv @@ q){} "
-                   "GROUP BY users.toshi_id ").format(where_q)
+                   "GROUP BY users.toshi_id ").format(
+                       "INNER JOIN websocket_sessions ON users.toshi_id = websocket_sessions.toshi_id "
+                       if check_connected else "",
+                       where_q)
             if apps is not None and len(categories) > 0:
                 sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
                 sql_args.append(categories)

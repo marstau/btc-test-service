@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS users (
     tsv TSVECTOR,
     -- APP specific details
     is_app BOOLEAN DEFAULT FALSE,
-    websocket_connection_count INTEGER DEFAULT 0,
     featured BOOLEAN DEFAULT FALSE,
     -- whether or not the app has been blocked from
     -- showing up on the app store page
@@ -25,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_username ON users (lower(username));
 CREATE INDEX IF NOT EXISTS idx_users_apps ON users (is_app);
-CREATE INDEX IF NOT EXISTS idx_users_apps_websocket_connection_count ON users (is_app, websocket_connection_count);
+
 CREATE INDEX IF NOT EXISTS idx_users_tsv ON users USING gin(tsv);
 
 CREATE INDEX IF NOT EXISTS idx_users_went_public ON users (went_public DESC NULLS LAST);
@@ -84,4 +83,13 @@ CREATE TABLE IF NOT EXISTS app_categories (
     PRIMARY KEY (category_id, toshi_id)
 );
 
-UPDATE database_version SET version_number = 21;
+CREATE TABLE IF NOT EXISTS websocket_sessions (
+    websocket_session_id VARCHAR PRIMARY KEY,
+    toshi_id VARCHAR NOT NULL,
+    last_seen TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
+);
+
+CREATE INDEX IF NOT EXISTS idx_websocket_sessions_toshi_id ON websocket_sessions (toshi_id);
+CREATE INDEX IF NOT EXISTS idx_websocket_sessions_last_seen ON websocket_sessions (last_seen DESC);
+
+UPDATE database_version SET version_number = 22;

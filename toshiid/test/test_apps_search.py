@@ -355,6 +355,8 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
 
     def setUp(self):
         super().setUp(extraconf={'general': {'apps_dont_require_websocket': False}})
+        from toshiid.websocket import WebsocketHandler
+        WebsocketHandler.SESSION_CLOSE_TIMEOUT = 0
 
     def get_urls(self):
         return urls
@@ -427,7 +429,7 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
 
         for con in cons[:3]:
             con.close()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.2)
 
         resp = await self.fetch("/search/apps?query={}&featured".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -435,7 +437,7 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         self.assertEqual(len(body['results']), 2)
 
         cons[3].close()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.2)
 
         resp = await self.fetch("/search/apps?query={}&featured".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -443,9 +445,86 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         self.assertEqual(len(body['results']), 1)
 
         cons[4].close()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.2)
 
         resp = await self.fetch("/search/apps?query={}&featured".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 0)
+
+    @gen_test
+    @requires_database
+    async def test_non_query_search(self):
+
+        setup_data = [
+            ("ToshiBotA", "toshi bot a", os.urandom(32), True),
+            ("ToshiBotB", "toshi bot b", os.urandom(32), True),
+            ("ToshiBotC", "toshi bot c", os.urandom(32), True),
+            ("ToshiBotD", "toshi bot d", os.urandom(32), True),
+            ("ToshiBotE", "toshi bot e", os.urandom(32), True)
+        ]
+
+        cons = []
+        for username, name, private_key, featured in setup_data:
+            async with self.pool.acquire() as con:
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app) VALUES ($1, $2, $3, $4, $5)",
+                                  username, name, private_key_to_address(private_key), featured, True)
+
+        cons = []
+        resp = await self.fetch("/search/apps", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
+
+        con = await self.websocket_connect(setup_data[0][2])
+        cons.append(con)
+
+        resp = await self.fetch("/search/apps", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+        for _, _, private_key, _ in setup_data[1:]:
+            con = await self.websocket_connect(private_key)
+            cons.append(con)
+
+        resp = await self.fetch("/search/apps", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 5)
+
+    @gen_test
+    @requires_database
+    async def test_multiple_websockets(self):
+        username = "ToshiBot"
+        private_key = os.urandom(32)
+        toshi_id = private_key_to_address(private_key)
+
+        username2 = "ToshiBot2"
+        private_key2 = os.urandom(32)
+        toshi_id2 = private_key_to_address(private_key2)
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
+                              username, username, toshi_id, True)
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
+                              username2, username2, toshi_id2, True)
+
+        resp = await self.fetch("/search/apps", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
+
+        cons = []
+        for _ in range(10):
+            con = await self.websocket_connect(private_key)
+            cons.append(con)
+
+        async with self.pool.acquire() as con:
+            count = await con.fetchval("SELECT COUNT(*) FROM websocket_sessions")
+        self.assertEqual(count, len(cons))
+
+        resp = await self.fetch("/search/apps", method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
