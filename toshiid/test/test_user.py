@@ -597,3 +597,70 @@ class UserHandlerTest(AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)
 
         self.assertIsNotNone(row)
+
+
+class AppHandlerTestWithForcedPublic(AsyncHandlerTest):
+
+    def setUp(self):
+        super().setUp(extraconf={'general': {'apps_public_by_default': True}})
+
+    def get_urls(self):
+        return urls
+
+    def get_url(self, path):
+        path = "/v1{}".format(path)
+        return super().get_url(path)
+
+    @gen_test
+    async def test_generate_username_length(self):
+        for n in [0, 5]:
+            id = generate_username(n).split('user')[1]
+            self.assertEqual(len(id), n)
+
+    @gen_test
+    @requires_database
+    async def test_create_app_user(self):
+
+        resp = await self.fetch("/timestamp")
+        self.assertEqual(resp.code, 200)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST",
+                                       body={'payment_address': TEST_PAYMENT_ADDRESS, 'is_app': True})
+
+        self.assertResponseCodeEqual(resp, 200)
+
+        body = json_decode(resp.body)
+
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertTrue(row['is_app'])
+        self.assertTrue(row['is_public'])
+
+        self.assertIsNotNone(row['username'])
+
+        # ensure we got a tracking event
+        self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                       body={'is_app': False})
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertFalse(row['is_app'])
+        self.assertFalse(row['is_public'])
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
+                                       body={'is_app': True})
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
+
+        self.assertIsNotNone(row)
+        self.assertTrue(row['is_app'])
+        self.assertTrue(row['is_public'])

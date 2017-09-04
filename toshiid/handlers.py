@@ -212,6 +212,8 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                 is_app = parse_boolean(payload['is_app'])
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+                if self.application.config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
+                    payload['public'] = is_app
                 await self.db.execute("UPDATE users SET is_app = $1 WHERE toshi_id = $2", is_app, toshi_id)
 
             if 'categories' in payload and payload['categories'] != categories:
@@ -362,8 +364,17 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             is_app = parse_boolean(payload['is_app'])
             if is_app is None:
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+            if is_app is True and self.application.config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
+                payload['public'] = is_app
         else:
             is_app = False
+
+        if 'public' in payload:
+            is_public = parse_boolean(payload['public'])
+            if is_public is None:
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+        else:
+            is_public = False
 
         if 'avatar' in payload:
             avatar = payload['avatar']
@@ -395,10 +406,10 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         async with self.db:
             await self.db.execute("INSERT INTO users "
-                                  "(username, toshi_id, payment_address, name, avatar, is_app, about, location) "
+                                  "(username, toshi_id, payment_address, name, avatar, is_app, about, location, is_public) "
                                   "VALUES "
-                                  "($1, $2, $3, $4, $5, $6, $7, $8)",
-                                  username, toshi_id, payment_address, name, avatar, is_app, about, location)
+                                  "($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                                  username, toshi_id, payment_address, name, avatar, is_app, about, location, is_public)
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 

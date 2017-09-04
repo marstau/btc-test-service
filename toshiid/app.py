@@ -56,6 +56,11 @@ class Application(toshi.web.Application):
         elif 'apps_dont_require_websocket' not in config['general']:
             config['general']['apps_dont_require_websocket'] = 'false'
 
+        if 'APPS_PUBLIC_BY_DEFAULT' in os.environ:
+            config['general']['apps_public_by_default'] = os.environ['APPS_PUBLIC_BY_DEFAULT']
+        elif 'apps_public_by_default' not in config['general']:
+            config['general']['apps_public_by_default'] = 'false'
+
         return config
 
 def main():
