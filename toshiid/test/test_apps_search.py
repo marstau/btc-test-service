@@ -1,5 +1,6 @@
 import asyncio
 import os
+import names as namegen
 from tornado.escape import json_decode
 from tornado.testing import gen_test
 from datetime import datetime
@@ -33,20 +34,23 @@ class AppsHandlerTest(AsyncHandlerTest):
         self.assertEqual(len(body['results']), 0)
 
         setup_data = [
-            ("ToshiBotA", TEST_ADDRESS[:-1] + 'f', False, True),
-            ("ToshiBotB", TEST_ADDRESS[:-1] + 'e', False, True),
-            ("FeaturedBotA", TEST_ADDRESS[:-1] + 'd', True, True),
-            ("FeaturedBotB", TEST_ADDRESS[:-1] + 'c', True, True),
-            ("FeaturedBotC", TEST_ADDRESS[:-1] + 'b', True, True),
-            ("NormalUser1", TEST_ADDRESS[:-2] + '00', False, False),
-            ("NormalUser2", TEST_ADDRESS[:-2] + '01', False, False),
-            ("NormalUser3", TEST_ADDRESS[:-2] + '02', False, False),
+            ("ToshiBotA", private_key_to_address(os.urandom(32)), False, True, True),
+            ("ToshiBotB", private_key_to_address(os.urandom(32)), False, True, True),
+            ("FeaturedBotA", private_key_to_address(os.urandom(32)), True, True, True),
+            ("FeaturedBotB", private_key_to_address(os.urandom(32)), True, True, True),
+            ("FeaturedBotC", private_key_to_address(os.urandom(32)), True, True, True),
+            ("NotPublicBotA", private_key_to_address(os.urandom(32)), True, True, False),
+            ("NotPublicBotB", private_key_to_address(os.urandom(32)), False, True, False),
+            ("NotPublicBotC", private_key_to_address(os.urandom(32)), True, True, False),
+            ("NormalUser1", private_key_to_address(os.urandom(32)), False, False, True),
+            ("NormalUser2", private_key_to_address(os.urandom(32)), False, False, False),
+            ("NormalUser3", private_key_to_address(os.urandom(32)), False, False, True),
         ]
 
-        for username, addr, featured, is_app in setup_data:
+        for username, addr, featured, is_app, is_public in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, is_app, featured) VALUES ($1, $2, $3, $4, $5)",
-                                  username, username, addr, is_app, featured)
+                await con.execute("INSERT INTO users (username, name, toshi_id, is_app, featured, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                                  username, username, addr, is_app, featured, is_public)
 
         resp = await self.fetch("/apps", method="GET")
         self.assertResponseCodeEqual(resp, 200)
@@ -120,6 +124,15 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
                               username, username, TEST_ADDRESS, True)
 
+        # make sure results aren't returned if apps are not public
+        resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
+
+        async with self.pool.acquire() as con:
+            await con.execute("UPDATE users SET is_public = TRUE")
+
         resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
@@ -152,8 +165,8 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         for username, name, addr, featured in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app) VALUES ($1, $2, $3, $4, $5)",
-                                  username, name, addr, featured, True)
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                                  username, name, addr, featured, True, True)
 
         resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -213,7 +226,8 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             insert_vals.append((private_key_to_address(key), username, name, None, 0))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_app, featured) VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_app, featured, is_public) "
+                "VALUES ($1, $2, $3, $4, $5, TRUE, TRUE, TRUE)",
                 insert_vals)
         resp = await self.fetch("/search/apps?query=Toshi&limit={}".format(k + 1), method="GET")
         self.assertEqual(resp.code, 200)
@@ -251,13 +265,13 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
     async def test_app_underscore_username_query(self):
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
                               "wager_weight", "Wager Weight", "0x0000000000000000000000000000000000000001")
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
                               "bob_smith", "Robert", "0x0000000000000000000000000000000000000002")
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
                               "bob_jack", "Jackie", "0x0000000000000000000000000000000000000003")
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
                               "user1234", "user1234", "0x0000000000000000000000000000000000000004")
 
         for positive_query in ["wager", "wager_we", "wager_weight", "bob_smi"]:
@@ -288,8 +302,9 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         for username, name, addr, created, rating, rev_count in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, created, reputation_score, review_count, is_app, featured) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-                                  username, name, addr, created, rating, rev_count, True, True)
+                await con.execute("INSERT INTO users (username, name, toshi_id, created, reputation_score, review_count, is_app, featured, is_public) "
+                                  "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                                  username, name, addr, created, rating, rev_count, True, True, True)
 
         # check alphabetical search
 
@@ -350,6 +365,82 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
         # ensure we got a tracking event
         self.assertEqual((await self.next_tracking_event())[0], None)
 
+    @gen_test(timeout=30)
+    @requires_database
+    async def test_users_vs_public(self):
+        """Make sure only apps show up in public searches"""
+
+        no_of_users_to_generate = 20
+        insert_vals = []
+        for i in range(0, no_of_users_to_generate):
+            key = os.urandom(32)
+            name = namegen.get_full_name()
+            username = name.lower().replace(' ', '')
+            insert_vals.append((private_key_to_address(key), username, name,
+                                (i / (no_of_users_to_generate - 1)) * 5.0, 10,
+                                True if i % 4 == 0 else False, True if i % 2 == 0 else False))
+
+        no_of_apps = (i + (1 if i % 2 == 1 else 2)) // 2
+        no_of_public_apps = (i + (1 if i % 4 == 1 else 2)) // 4
+
+        async with self.pool.acquire() as con:
+            await con.executemany(
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                insert_vals)
+
+        resp = await self.fetch("/search/user?apps=true&limit={}".format(i + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), no_of_apps)
+        for user in results:
+            self.assertTrue(user['is_app'])
+
+        # make sure apps search only includes public apps by default
+        resp = await self.fetch("/search/apps?limit={}".format(i + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), no_of_public_apps)
+        for user in results:
+            self.assertTrue(user['is_app'])
+            self.assertTrue(user['public'])
+
+    @gen_test(timeout=30)
+    @requires_database
+    async def test_featured_and_not_public(self):
+        """Make sure only apps show up in featured search if they're set to public"""
+
+        no_of_users_to_generate = 20
+        insert_vals = []
+        for i in range(0, no_of_users_to_generate):
+            key = os.urandom(32)
+            name = namegen.get_full_name()
+            username = name.lower().replace(' ', '')
+            insert_vals.append((private_key_to_address(key), username, name,
+                                (i / (no_of_users_to_generate - 1)) * 5.0, 10,
+                                True if i % 2 == 0 else False, True, True))
+
+        no_of_public_apps = (i + (1 if i % 2 == 1 else 2)) // 2
+
+        async with self.pool.acquire() as con:
+            await con.executemany(
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_app, featured) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                insert_vals)
+
+        resp = await self.fetch("/search/user?apps=true&limit={}".format(i + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), no_of_users_to_generate)
+
+        resp = await self.fetch("/search/apps?featured=true&limit={}".format(i + 1), method="GET")
+        self.assertEqual(resp.code, 200)
+        results = json_decode(resp.body)['results']
+        self.assertEqual(len(results), no_of_public_apps)
+        for user in results:
+            self.assertTrue(user['is_app'])
+            self.assertTrue(user['public'])
+            self.assertTrue(user['featured'])
+
 
 class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
 
@@ -379,8 +470,8 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         toshi_id = private_key_to_address(private_key)
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
-                              username, username, toshi_id, True)
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, $4, $5)",
+                              username, username, toshi_id, True, True)
 
         resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
         self.assertEqual(resp.code, 200)
@@ -411,8 +502,8 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         cons = []
         for username, name, private_key, featured in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app) VALUES ($1, $2, $3, $4, $5)",
-                                  username, name, private_key_to_address(private_key), featured, True)
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                                  username, name, private_key_to_address(private_key), featured, True, True)
 
             con = await self.websocket_connect(private_key)
             cons.append(con)
@@ -467,8 +558,8 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         cons = []
         for username, name, private_key, featured in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app) VALUES ($1, $2, $3, $4, $5)",
-                                  username, name, private_key_to_address(private_key), featured, True)
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                                  username, name, private_key_to_address(private_key), featured, True, True)
 
         cons = []
         resp = await self.fetch("/search/apps", method="GET")
@@ -505,10 +596,10 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         toshi_id2 = private_key_to_address(private_key2)
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
-                              username, username, toshi_id, True)
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
-                              username2, username2, toshi_id2, True)
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, $4, $5)",
+                              username, username, toshi_id, True, True)
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, $4, $5)",
+                              username2, username2, toshi_id2, True, True)
 
         resp = await self.fetch("/search/apps", method="GET")
         self.assertEqual(resp.code, 200)

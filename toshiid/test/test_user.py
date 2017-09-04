@@ -571,3 +571,29 @@ class UserHandlerTest(AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)
 
         self.assertIsNotNone(row)
+
+    @gen_test
+    @requires_database
+    async def test_set_public_for_apps(self):
+        """check that setting an app to public works"""
+
+        capitalised = 'BobSmith'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, toshi_id, is_app) VALUES ($1, $2, TRUE)", capitalised, TEST_ADDRESS)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)
+
+        self.assertIsNone(row)
+
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
+            "public": True
+        })
+
+        self.assertResponseCodeEqual(resp, 200, resp.body)
+
+        async with self.pool.acquire() as con:
+            row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)
+
+        self.assertIsNotNone(row)

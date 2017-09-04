@@ -428,18 +428,8 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertEqual(resp.code, 200)
         results = json_decode(resp.body)['results']
         self.assertEqual(len(results), no_of_users_to_generate)
-        # make sure if user is marked as being an app, they're not listed as public users
-        for user in results:
-            if user['is_app']:
-                self.assertFalse(user['public'])
-            else:
-                self.assertTrue(user['public'])
 
         resp = await self.fetch("/search/user?public=true&limit={}".format(i + 1), method="GET")
         self.assertEqual(resp.code, 200)
         results = json_decode(resp.body)['results']
         self.assertEqual(len(results), (i + (1 if i % 2 == 1 else 2)) // 2)
-        # make sure if user is marked as being an app, they're not listed as public users
-        for user in results:
-            self.assertFalse(user['is_app'])
-            self.assertTrue(user['public'])

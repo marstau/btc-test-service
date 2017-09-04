@@ -50,7 +50,7 @@ def user_row_for_json(request, row):
         'about': row['about'],
         'location': row['location'],
         'is_app': row['is_app'],
-        'public': row['is_public'] if not row['is_app'] else False,
+        'public': row['is_public'],
         'reputation_score': float(row['reputation_score']) if row['reputation_score'] is not None else None,
         'average_rating': float(row['average_rating']) if row['average_rating'] is not None else 0,
         'review_count': row['review_count']
@@ -60,6 +60,7 @@ def user_row_for_json(request, row):
             request.protocol, request.host,
             rval['avatar'])
     if row['is_app']:
+        rval['featured'] = row['featured'] or False
         if 'category_names' in row and 'category_ids' in row:
             rval['categories'] = [{'id': cat[0], 'tag': cat[1], 'name': cat[2]}
                                   for cat in zip(row['category_ids'], row['category_tags'], row['category_names'])
@@ -543,6 +544,9 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
         # forece_featured should always infer force_apps
         if self.force_apps or self.force_featured:
             apps = True
+            # if force_apps is true, make sure only public apps are returned
+            if public is None:
+                public = True
         else:
             apps = parse_boolean(self.get_query_argument('apps', None))
 
@@ -559,8 +563,6 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             featured = None
 
         if apps is True:
-            # force remove public if apps is True
-            public = None
             # force featured if recent + apps
             if recent is True:
                 featured = True
@@ -610,9 +612,14 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     if featured is not None:
                         sql += "AND featured = ${} ".format(len(sql_args) + 1)
                         sql_args.append(featured)
+                    if public is not None:
+                        sql += "AND is_public = ${} ".format(len(sql_args) + 1)
+                        sql_args.append(public)
                 elif public is not None:
-                    sql += "WHERE is_public = ${} AND is_app = false ".format(len(sql_args) + 1)
+                    sql += "WHERE is_public = ${} ".format(len(sql_args) + 1)
                     sql_args.append(public)
+                    if apps is None or apps is False:
+                        sql += "AND is_app = FALSE "
                 sql += "GROUP BY users.toshi_id "
                 if apps is not None and len(categories) > 0:
                     sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
@@ -657,11 +664,16 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     for category in categories:
                         where_q.append("app_categories.category_id = ${}".format(len(sql_args) + 1))
                         sql_args.append(category)
+                if public is not None:
+                    where_q.append("is_public = ${}".format(len(sql_args) + 1))
+                    sql_args.append(public)
             elif public is not None:
-                # apps shouldn't show up in the public profiles list
-                where_q.append("is_app = ${}".format(len(sql_args) + 1))
-                where_q.append("is_public = ${}".format(len(sql_args) + 2))
-                sql_args.extend([False, public])
+                if apps is None or apps is False:
+                    # apps shouldn't show up in the public profiles list
+                    where_q.append("is_app = ${}".format(len(sql_args) + 1))
+                    sql_args.append(False)
+                where_q.append("is_public = ${}".format(len(sql_args) + 1))
+                sql_args.append(public)
             where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
             sql = ("SELECT * FROM "
                    "(SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
