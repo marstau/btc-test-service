@@ -29,6 +29,9 @@ PUNCTUATION = string.punctuation.replace('_', '')
 
 MIN_AUTOID_LENGTH = 5
 
+CACHE_MAX_AGE_SECONDS = 1209600
+AVATAR_URL_HASH_LENGTH = 6
+
 def generate_username(autoid_length):
     """Generate usernames postfixed with a random ID which is a concatenation
     of digits of length `autoid_length`"""
@@ -304,10 +307,10 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
         async with self.db:
             await self.db.execute("INSERT INTO avatars (toshi_id, img, hash, format) VALUES ($1, $2, $3, $4) "
-                                  "ON CONFLICT (toshi_id) DO UPDATE "
-                                  "SET img = EXCLUDED.img, hash = EXCLUDED.hash, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
+                                  "ON CONFLICT (toshi_id, hash) DO UPDATE "
+                                  "SET img = EXCLUDED.img, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
                                   toshi_id, data, cache_hash, format)
-            avatar_url = "/avatar/{}.{}".format(toshi_id, 'jpg' if format == 'JPEG' else 'png')
+            avatar_url = "/avatar/{}_{}.{}".format(toshi_id, cache_hash[:AVATAR_URL_HASH_LENGTH], 'jpg' if format == 'JPEG' else 'png')
             await self.db.execute("UPDATE users SET avatar = $1 WHERE toshi_id = $2", avatar_url, toshi_id)
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
@@ -767,6 +770,8 @@ class SimpleFileHandler(BaseHandler):
         self.set_header("Last-Modified", last_modified)
         self.set_header("Content-type", content_type)
         self.set_header("Content-length", len(data))
+        self.set_header("Cache-Control", "max-age={}, no-transform".format(CACHE_MAX_AGE_SECONDS))
+        self.set_header("Expires", datetime.datetime.utcnow() + datetime.timedelta(seconds=CACHE_MAX_AGE_SECONDS))
 
         if self.request.headers.get("If-None-Match"):
             # check etag
@@ -798,6 +803,7 @@ class IdenticonHandler(DatabaseMixin, SimpleFileHandler):
         return self.get(address, format, include_body=False)
 
     async def get(self, address, format, include_body=True):
+
         format = format.upper()
         if format == 'JPG':
             format = 'JPEG'
@@ -816,8 +822,8 @@ class IdenticonHandler(DatabaseMixin, SimpleFileHandler):
             cache_hash = hasher.hexdigest()
             async with self.db:
                 await self.db.execute("INSERT INTO avatars (toshi_id, img, hash, format) VALUES ($1, $2, $3, $4) "
-                                      "ON CONFLICT (toshi_id) DO UPDATE "
-                                      "SET img = EXCLUDED.img, hash = EXCLUDED.hash, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
+                                      "ON CONFLICT (toshi_id, hash) DO UPDATE "
+                                      "SET img = EXCLUDED.img, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
                                       identicon_pkey, data, cache_hash, format)
                 await self.db.commit()
             last_modified = datetime.datetime.utcnow()
@@ -830,10 +836,10 @@ class IdenticonHandler(DatabaseMixin, SimpleFileHandler):
 
 class AvatarHandler(DatabaseMixin, SimpleFileHandler):
 
-    def head(self, address, format):
-        return self.get(address, format, include_body=False)
+    def head(self, address, hash, format):
+        return self.get(address, hash, format, include_body=False)
 
-    async def get(self, address, format, include_body=True):
+    async def get(self, address, hash, format, include_body=True):
 
         format = format.upper()
         if format not in ['PNG', 'JPG', 'JPEG']:
@@ -842,7 +848,14 @@ class AvatarHandler(DatabaseMixin, SimpleFileHandler):
             format = 'JPEG'
 
         async with self.db:
-            row = await self.db.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", address)
+            if hash is None:
+                row = await self.db.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1 AND format = $2 ORDER BY last_modified DESC",
+                                             address, format)
+            else:
+                row = await self.db.fetchrow(
+                    "SELECT * FROM avatars WHERE toshi_id = $1 AND format = $2 AND substring(hash for {}) = $3"
+                    .format(AVATAR_URL_HASH_LENGTH),
+                    address, format, hash)
 
         if row is None or row['format'] != format:
             raise HTTPError(404)

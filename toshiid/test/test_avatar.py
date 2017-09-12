@@ -13,7 +13,7 @@ from tornado.platform.asyncio import to_asyncio_future
 from tornado.ioloop import IOLoop
 
 from toshiid.app import urls
-from toshiid.handlers import EXIF_ORIENTATION
+from toshiid.handlers import EXIF_ORIENTATION, AVATAR_URL_HASH_LENGTH
 from toshi.analytics import encode_id
 from toshi.test.database import requires_database
 from toshi.test.base import AsyncHandlerTest
@@ -84,16 +84,18 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertEqual(arow['img'], files[0][1])
         self.assertIsNotNone(urow)
         self.assertIsNotNone(urow['avatar'])
-        self.assertEqual(urow['avatar'], "/avatar/{}.png".format(TEST_ADDRESS))
+        first_avatar_url = "/avatar/{}_{}.png".format(TEST_ADDRESS, arow['hash'][:AVATAR_URL_HASH_LENGTH])
+        self.assertEqual(urow['avatar'], first_avatar_url)
 
-        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
-        self.assertResponseCodeEqual(resp, 200)
-        # easy to test png, it doesn't change so easily when "double" saved
-        self.assertEqual(resp.body, png)
-        self.assertIn('Etag', resp.headers)
-        last_etag = resp.headers['Etag']
-        self.assertIn('Last-Modified', resp.headers)
-        last_modified = resp.headers['Last-Modified']
+        for url in [first_avatar_url, "/avatar/{}.png".format(TEST_ADDRESS)]:
+            resp = await self.fetch(url, method="GET")
+            self.assertEqual(resp.code, 200, "Got unexpected {} for url: {} (hash: {})".format(resp.code, url, arow['hash']))
+            # easy to test png, it doesn't change so easily when "double" saved
+            self.assertEqual(resp.body, png)
+            self.assertIn('Etag', resp.headers)
+            last_etag = resp.headers['Etag']
+            self.assertIn('Last-Modified', resp.headers)
+            last_modified = resp.headers['Last-Modified']
 
         # try update with jpeg
         jpeg = blockies.create(TEST_ADDRESS_2, size=8, scale=12, format='JPEG')
@@ -143,14 +145,13 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
                                         })
         self.assertResponseCodeEqual(presp, 200)
         data = json_decode(presp.body)
-        self.assertTrue(data['avatar'].endswith("/avatar/{}.jpg".format(TEST_ADDRESS)))
+        urlend = "/avatar/{}_{}.jpg".format(TEST_ADDRESS, resp.headers['Etag'][1:AVATAR_URL_HASH_LENGTH + 1])
+        self.assertTrue(data['avatar'].endswith(urlend), "{} does not end with {}".format(data['avatar'], urlend))
 
-        # make sure png 404's now
-        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET", headers={
-            'If-None-Match': resp.headers['Etag'],
-            'If-Modified-Since': resp.headers['Last-Modified']
-        })
-        self.assertResponseCodeEqual(resp, 404)
+        # make sure the original url is still available
+        resp = await self.fetch(first_avatar_url, method="GET")
+        self.assertResponseCodeEqual(resp, 200)
+        self.assertEqual(resp.body, png)
 
     @gen_test
     @requires_database
@@ -181,7 +182,7 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertEqual(arow['img'], files[0][1])
         self.assertIsNotNone(urow)
         self.assertIsNotNone(urow['avatar'])
-        self.assertEqual(urow['avatar'], "/avatar/{}.png".format(TEST_ADDRESS))
+        self.assertEqual(urow['avatar'], "/avatar/{}_{}.png".format(TEST_ADDRESS, arow['hash'][:AVATAR_URL_HASH_LENGTH]))
 
     @gen_test
     @requires_database

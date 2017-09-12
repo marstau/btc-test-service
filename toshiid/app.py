@@ -27,7 +27,7 @@ urls = [
 
     # avatar endpoints
     (r"^/identicon/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.IdenticonHandler),
-    (r"^/avatar/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.AvatarHandler),
+    (r"^/avatar/(?P<address>0x[0-9a-fA-f]{40})(?:_(?P<hash>[a-fA-F0-9]+))?\.(?P<format>[a-zA-Z]{3})$", handlers.AvatarHandler),
 
     # reputation update endpoint
     (r"^/v1/reputation/?$", handlers.ReputationUpdateHandler),

@@ -48,12 +48,19 @@ CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
 ON users FOR EACH ROW EXECUTE PROCEDURE users_search_trigger();
 
 CREATE TABLE IF NOT EXISTS avatars (
-    toshi_id VARCHAR PRIMARY KEY,
+    toshi_id VARCHAR,
     img BYTEA,
     hash VARCHAR,
     format VARCHAR NOT NULL,
-    last_modified TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
+    last_modified TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'),
+
+    PRIMARY KEY (toshi_id, hash)
 );
+
+CREATE INDEX IF NOT EXISTS idx_avatars_toshi_id_hash_substr ON avatars (toshi_id, substring(hash for 5));
+CREATE INDEX IF NOT EXISTS idx_avatars_toshi_id_format_hash_substr ON avatars (toshi_id, format, substring(hash for 5));
+CREATE INDEX IF NOT EXISTS idx_avatars_toshi_id_last_modified ON avatars (toshi_id, last_modified DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_avatars_toshi_id_format_last_modified ON avatars (toshi_id, format, last_modified DESC NULLS LAST);
 
 CREATE TABLE IF NOT EXISTS reports (
     report_id SERIAL PRIMARY KEY,
@@ -92,4 +99,4 @@ CREATE TABLE IF NOT EXISTS websocket_sessions (
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_toshi_id ON websocket_sessions (toshi_id);
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_last_seen ON websocket_sessions (last_seen DESC);
 
-UPDATE database_version SET version_number = 22;
+UPDATE database_version SET version_number = 23;
