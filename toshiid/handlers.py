@@ -484,6 +484,13 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
+        elif row['active'] is False:
+
+            # mark users as active if their data has been accessed
+            async with self.db:
+                await self.db.execute("UPDATE users SET active = true WHERE toshi_id = $1", row['toshi_id'])
+                await self.db.commit()
+
         self.write(user_row_for_json(self.request, row))
 
     async def put(self, username):
@@ -603,7 +610,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             if check_connected:
                 sql += "INNER JOIN websocket_sessions ON users.toshi_id = websocket_sessions.toshi_id "
             if payment_address:
-                sql += "WHERE payment_address = ${} ".format(len(sql_args) + 1)
+                sql += "WHERE active = true AND payment_address = ${} ".format(len(sql_args) + 1)
                 sql_args.append(payment_address)
                 if apps is not None:
                     sql += "AND is_app = ${} AND blocked = false ".format(len(sql_args) + 1)
@@ -634,6 +641,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     sql_args.append(public)
                     if apps is None or apps is False:
                         sql += "AND is_app = FALSE "
+                sql += "AND active = true "
                 sql += "GROUP BY users.toshi_id "
                 if apps is not None and len(categories) > 0:
                     sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
@@ -688,6 +696,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     sql_args.append(False)
                 where_q.append("is_public = ${}".format(len(sql_args) + 1))
                 sql_args.append(public)
+            where_q.append("active = true")
             where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
             sql = ("SELECT * FROM "
                    "(SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "

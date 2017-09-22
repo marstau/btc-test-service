@@ -433,3 +433,26 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertEqual(resp.code, 200)
         results = json_decode(resp.body)['results']
         self.assertEqual(len(results), (i + (1 if i % 2 == 1 else 2)) // 2)
+
+    @gen_test
+    @requires_database
+    async def test_inactive_username_query(self):
+
+        username = "bobsmith"
+        positive_query = 'bobsm'
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, toshi_id, active) VALUES ($1, $2, false)", username, TEST_ADDRESS)
+
+        resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
+
+        resp = await self.fetch("/user/{}".format(username), method="GET")
+        self.assertResponseCodeEqual(resp, 200)
+
+        resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)

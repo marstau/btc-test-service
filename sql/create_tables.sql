@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS users (
     featured BOOLEAN DEFAULT FALSE,
     -- whether or not the app has been blocked from
     -- showing up on the app store page
-    blocked BOOLEAN DEFAULT FALSE
+    blocked BOOLEAN DEFAULT FALSE,
+    -- migration flag, whether or not the migrated user has logged in at all
+    active BOOLEAN DEFAULT TRUE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_username ON users (lower(username));
@@ -99,4 +101,4 @@ CREATE TABLE IF NOT EXISTS websocket_sessions (
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_toshi_id ON websocket_sessions (toshi_id);
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_last_seen ON websocket_sessions (last_seen DESC);
 
-UPDATE database_version SET version_number = 23;
+UPDATE database_version SET version_number = 24;
