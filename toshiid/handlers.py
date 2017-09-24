@@ -278,6 +278,10 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Location'}]})
                 await self.db.execute("UPDATE users SET location = $1 WHERE toshi_id = $2", location, toshi_id)
 
+            if user['active'] is False:
+                # mark users as active if their data has been accessed
+                await self.db.execute("UPDATE users SET active = true WHERE toshi_id = $1", toshi_id)
+
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 
@@ -483,13 +487,6 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
-
-        elif row['active'] is False:
-
-            # mark users as active if their data has been accessed
-            async with self.db:
-                await self.db.execute("UPDATE users SET active = true WHERE toshi_id = $1", row['toshi_id'])
-                await self.db.commit()
 
         self.write(user_row_for_json(self.request, row))
 

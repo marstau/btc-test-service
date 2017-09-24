@@ -449,7 +449,9 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 0)
 
-        resp = await self.fetch("/user/{}".format(username), method="GET")
+        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
+            "payment_address": TEST_ADDRESS
+        })
         self.assertResponseCodeEqual(resp, 200)
 
         resp = await self.fetch("/search/user?query={}".format(positive_query), method="GET")
