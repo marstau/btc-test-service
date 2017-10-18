@@ -15,7 +15,9 @@ from toshi.database import DatabaseMixin
 from toshi.errors import JSONHTTPError
 from toshi.log import log
 from decimal import Decimal
-from toshi.handlers import BaseHandler, RequestVerificationMixin
+from toshi.handlers import (BaseHandler,
+                            RequestVerificationMixin,
+                            SimpleFileHandler)
 from toshi.analytics import AnalyticsMixin, encode_id as analytics_encode_id
 from tornado.web import HTTPError
 from toshi.utils import validate_address, validate_decimal_string, validate_int_string, parse_int
@@ -30,7 +32,6 @@ PUNCTUATION = string.punctuation.replace('_', '')
 
 MIN_AUTOID_LENGTH = 5
 
-CACHE_MAX_AGE_SECONDS = 1209600
 AVATAR_URL_HASH_LENGTH = 6
 
 def generate_username(autoid_length):
@@ -782,36 +783,6 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             "payment_address": payment_address
         })
 
-class SimpleFileHandler(BaseHandler):
-    async def handle_file_response(self, data, content_type, etag,
-                                   last_modified, include_body=True):
-
-        last_modified = last_modified.replace(microsecond=0)
-        self.set_header("Etag", '"{}"'.format(etag))
-        self.set_header("Last-Modified", last_modified)
-        self.set_header("Content-type", content_type)
-        self.set_header("Content-length", len(data))
-        self.set_header("Cache-Control", "max-age={}, no-transform".format(CACHE_MAX_AGE_SECONDS))
-        self.set_header("Expires", datetime.datetime.utcnow() + datetime.timedelta(seconds=CACHE_MAX_AGE_SECONDS))
-
-        if self.request.headers.get("If-None-Match"):
-            # check etag
-            if self.check_etag_header():
-                # return 304
-                self.set_status(304)
-                return
-        else:
-            ims_value = self.request.headers.get("If-Modified-Since")
-            if ims_value is not None:
-                date_tuple = email.utils.parsedate(ims_value)
-                if date_tuple is not None:
-                    if_since = datetime.datetime(*date_tuple[:6])
-                    if if_since >= last_modified:
-                        self.set_status(304)
-                        return
-
-        if include_body:
-            self.write(data)
 
 class IdenticonHandler(DatabaseMixin, SimpleFileHandler):
 
