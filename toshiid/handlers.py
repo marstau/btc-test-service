@@ -490,20 +490,6 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-        elif row['active'] is False:
-            if 'User-Agent' in self.request.headers:
-                m = re.match('^Toshi/(\d+) CFNetwork/[\.\d]+ Darwin/[\.\d]+$', self.request.headers['User-Agent'])
-                if m:
-                    ios_version = int(m.group(1))
-                    if ios_version < 99:
-                        async with self.db:
-                            await self.db.execute("UPDATE users SET active = true WHERE toshi_id = $1", row['toshi_id'])
-                            await self.db.commit()
-                    else:
-                        # force later versions to do a payment address update for marking user as active
-                        row = dict(row)
-                        row['payment_address'] = '0x'
-
         self.write(user_row_for_json(self.request, row))
 
     async def put(self, username):
