@@ -1,10 +1,16 @@
 ## Running
 
+### Requirements
+
+- Python >= 3.5
+- Postgresql >= 9.6
+
 ### Setup env
 
 ```
-python3 -m virtualenv env
-env/bin/pip install -r requirements.txt
+virtualenv -p python3 env
+env/bin/pip install -r requirements-base.txt
+env/bin/pip install -r requirements-development.txt
 ```
 
 ### Running
