@@ -24,6 +24,16 @@ CREATE TABLE IF NOT EXISTS users (
     active BOOLEAN DEFAULT TRUE
 );
 
+CREATE TABLE IF NOT EXISTS dapps (
+    dapp_id BIGINT PRIMARY KEY,
+    name VARCHAR,
+    url VARCHAR,
+    description VARCHAR,
+    avatar VARCHAR,
+    created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc'),
+    updated TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_username ON users (lower(username));
 CREATE INDEX IF NOT EXISTS idx_users_apps ON users (is_app);
 
@@ -101,4 +111,4 @@ CREATE TABLE IF NOT EXISTS websocket_sessions (
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_toshi_id ON websocket_sessions (toshi_id);
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_last_seen ON websocket_sessions (last_seen DESC);
 
-UPDATE database_version SET version_number = 24;
+UPDATE database_version SET version_number = 25;

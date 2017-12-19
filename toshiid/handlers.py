@@ -44,6 +44,19 @@ def generate_username(autoid_length):
 def validate_username(username):
     return regex.match('^[a-zA-Z][a-zA-Z0-9_]{2,59}$', username)
 
+def dapp_row_for_json(request, row):
+    rval = {
+        'name': row['name'],
+        'description': row['description'],
+        'url': row['url'],
+        'avatar': row['avatar']
+    }
+    if rval['avatar'].startswith("/"):
+        rval['avatar'] = "{}://{}{}".format(
+            request.protocol, request.host,
+            rval['avatar'])
+    return rval
+
 def user_row_for_json(request, row):
     rval = {
         'username': row['username'],
@@ -767,6 +780,17 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             "top": top,
             "public": public,
             "payment_address": payment_address
+        })
+
+class SearchDappHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
+
+    async def get(self):
+
+        async with self.db:
+            rows = await self.db.fetch("SELECT * FROM dapps ORDER BY created DESC")
+
+        self.write({
+            'results': [dapp_row_for_json(self.request, row) for row in rows]
         })
 
 

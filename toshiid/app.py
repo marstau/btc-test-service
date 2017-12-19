@@ -21,6 +21,8 @@ urls = [
     (r"^/v1/(?:search/)?apps/?$", handlers.SearchUserHandler, {'force_apps': True}),
     (r"^/v1/(?:search/)?apps/featured/?$", handlers.SearchUserHandler,
      {'force_apps': True, 'force_featured': True}),
+    (r"^/v1/(?:search/)?dapps/?$", handlers.SearchDappHandler),
+
     (r"^/v1/report/?$", handlers.ReportHandler),
     # categories
     (r"^/v1/categories", handlers.CategoryHandler),

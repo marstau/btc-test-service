@@ -13,7 +13,6 @@ dependencies:
     - ./configure_environment.sh
     - pip install --upgrade -r requirements.txt
   post:
-    - pip install --upgrade -e git+ssh://git@github.com/toshiapp/toshi-services-lib.git@$CIRCLE_BRANCH#egg=toshi-services || true
     - yarn global --cache-folder ~/.yarn/cache add aglio --prefix ~/.yarn
   cache_directories:
     - ~/.yarn
