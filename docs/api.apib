@@ -525,6 +525,48 @@ Used to retrieve a current timestamp from the server for use in signing other re
       "query": "query=toshib"
     }
 
+## Retrieve multiple users [/v1/search/user?toshi_id=0x...&toshi_id=0x...]
+### Retrieve user profiles for all given toshi ids [GET]
+
+NOTE: the server will not accept more than 1000 toshi_ids in the query string.
+
++ Response 200 (application/json)
+
+    + Body
+
+        {
+            "results": [
+                {
+                    "toshi_id": "0x36d2fbe40516652a74a1d39f1a772b3039acd211",
+                    "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
+                    "username": "testuser",
+                    "is_app": false,
+                    "name": "Mr Tester"
+                    "about": null,
+                    "avatar": null,
+                    "location": null,
+                    "public": true,
+                    "reputation_score": 2.3,
+                    "review_count": 10,
+                    "average_rating": 4.5
+                },
+                {
+                    "toshi_id": "0x055ad1e905e99a09af4d44ad5cc1a3a38a26d5ac",
+                    "payment_address": "0x166db290f8ba3250ca64a45d16284d04bc6f5fb5",
+                    "username": "testuser2",
+                    "is_app": false,
+                    "name": "Mr Tester 2"
+                    "about": null,
+                    "avatar": null,
+                    "location": null,
+                    "public": true,
+                    "reputation_score": 2.3,
+                    "review_count": 10,
+                    "average_rating": 4.5
+                },
+                ...
+            ]
+        }
 
 # Group Id Service Login
 

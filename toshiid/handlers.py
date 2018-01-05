@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import asyncpg
 import regex
 import io
@@ -549,6 +550,13 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
         self.force_apps = force_apps
 
     async def get(self):
+        toshi_ids = self.get_query_arguments('toshi_id')
+        if len(toshi_ids) > 0:
+            return await self.list_users(toshi_ids)
+        else:
+            return await self.search()
+
+    async def search(self):
 
         try:
             offset = int(self.get_query_argument('offset', 0))
@@ -780,6 +788,30 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             "top": top,
             "public": public,
             "payment_address": payment_address
+        })
+
+    async def list_users(self, toshi_ids):
+
+        sql = "SELECT u.* FROM users u JOIN (VALUES "
+        values = []
+        for i, toshi_id in enumerate(toshi_ids):
+            if not validate_address(toshi_id):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+            values.append("('{}', {}) ".format(toshi_id, i))
+            # in case this request is made with a lot of ids
+            # make sure we yield to other processes rather
+            # than taking up all resources on this
+            if i > 0 and i % 100 == 0:
+                await asyncio.sleep(0.001)
+        sql += ", ".join(values)
+        sql += ") AS v (toshi_id, ordering) ON u.toshi_id = v.toshi_id "
+        sql += "ORDER BY v.ordering"
+
+        async with self.db:
+            rows = await self.db.fetch(sql)
+
+        self.write({
+            'results': [user_row_for_json(self.request, row) for row in rows]
         })
 
 class SearchDappHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):

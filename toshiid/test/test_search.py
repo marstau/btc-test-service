@@ -8,7 +8,7 @@ from toshi.test.base import AsyncHandlerTest
 from toshi.test.database import requires_database
 from toshi.ethereum.utils import data_encoder, private_key_to_address
 
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, quote as quote_arg
 
 from toshiid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS
 
@@ -458,3 +458,43 @@ class SearchUserHandlerTest(AsyncHandlerTest):
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 1)
+
+    @gen_test(timeout=10)
+    @requires_database
+    async def test_contact_list_query(self):
+
+        total_users = 10000
+        # NOTE: this seems to be the limit for query string length
+        # that the server will accept
+        query_users = 1255
+
+        users = [(data_encoder(os.urandom(20)), hex(i)) for i in range(total_users)]
+        bad_users = [
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "0xcccccccccccccccccccccccccccccccccccccccc"
+        ]
+        bad_users.extend(user[0] for user in users[:3])
+
+        async with self.pool.acquire() as con:
+            await con.executemany("INSERT INTO users (toshi_id, username, active) VALUES ($1, $2, false)",
+                                  users)
+
+        resp = await self.fetch("/search/user?{}".format("&".join("toshi_id={}".format(toshi_id) for toshi_id, _ in users[:query_users])))
+
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertIn('results', body)
+        self.assertEqual(len(body['results']), query_users)
+        for u, r in zip(users, body['results']):
+            self.assertEqual(u[0], r['toshi_id'])
+
+        resp = await self.fetch("/search/user?{}".format("&".join("toshi_id={}".format(toshi_id) for toshi_id in bad_users)))
+        body = json_decode(resp.body)
+        self.assertIn('results', body)
+        self.assertEqual(len(body['results']), 3)
+
+        # make sure we're safe from injection
+        inject = "0')) AS a (id) ON u.toshi_id = a.id; DELETE FROM users; SELECT u.* FROM users u JOIN ( VALUES ('0x0000000000000000000000000000000000000000"
+        resp = await self.fetch("/search/user?toshi_id={}".format(quote_arg(inject)))
+        self.assertEqual(resp.code, 400)
