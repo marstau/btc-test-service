@@ -6,11 +6,9 @@ import io
 import blockies
 import random
 import itertools
-import email.utils
 import string
 import datetime
 import hashlib
-import re
 
 from toshi.database import DatabaseMixin
 from toshi.errors import JSONHTTPError
