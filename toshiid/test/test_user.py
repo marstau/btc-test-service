@@ -65,7 +65,7 @@ class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
 
         self.assertIsNotNone(row['avatar'])
         self.assertIsNotNone(
-            regex.match("\/[^\/]+\/public\/identicon\/{}\.png".format(TEST_ADDRESS),
+            regex.match("\/[^\/]+\/public\/identicon\/{}\.png".format(TEST_PAYMENT_ADDRESS),
                         urllib.parse.urlparse(row['avatar']).path), row['avatar'])
 
         async with self.boto:
