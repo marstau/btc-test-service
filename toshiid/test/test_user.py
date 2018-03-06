@@ -1,4 +1,6 @@
 import time
+import regex
+import urllib.parse
 
 from tornado.escape import json_decode
 from tornado.testing import gen_test
@@ -6,6 +8,7 @@ from tornado.testing import gen_test
 from toshiid.app import urls
 from toshiid.handlers import generate_username
 from toshi.analytics import encode_id
+from toshi.test.moto_server import requires_moto, BotoTestMixin
 from toshi.test.database import requires_database
 from toshi.test.base import AsyncHandlerTest
 from toshi.request import sign_request
@@ -19,13 +22,14 @@ TEST_PAYMENT_ADDRESS = "0x444433335555ffffaaaa222211119999ffff7777"
 TEST_ADDRESS_2 = "0x7f0294b53af29ded2b5fa04b6225a1bc334a41e6"
 
 
-class UserHandlerTest(AsyncHandlerTest):
+class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
 
     def get_urls(self):
         return urls
 
     def get_url(self, path):
-        path = "/v1{}".format(path)
+        if not path.startswith("http://") and not path.startswith("https://"):
+            path = "/v1{}".format(path)
         return super().get_url(path)
 
     @gen_test
@@ -36,6 +40,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_create_user(self):
 
         resp = await self.fetch("/timestamp")
@@ -58,11 +63,25 @@ class UserHandlerTest(AsyncHandlerTest):
 
         self.assertIsNotNone(row['username'])
 
+        self.assertIsNotNone(row['avatar'])
+        self.assertIsNotNone(
+            regex.match("\/[^\/]+\/public\/identicon\/{}\.png".format(TEST_ADDRESS),
+                        urllib.parse.urlparse(row['avatar']).path), row['avatar'])
+
+        async with self.boto:
+            objs = await self.boto.list_objects()
+        self.assertIn('Contents', objs)
+        self.assertEqual(len(objs['Contents']), 1)
+
+        resp = await self.fetch(row['avatar'], method="GET")
+        self.assertEqual(resp.code, 200, "Got unexpected {} for url: {}".format(resp.code, row['avatar']))
+
         # ensure we got a tracking event
         self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_create_app_user(self):
 
         resp = await self.fetch("/timestamp")
@@ -105,6 +124,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_create_user_missing_payment_address(self):
         # TODO: change this to make sure payment_address is required
 
@@ -124,6 +144,7 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_create_user_with_username(self):
 
         username = "bobsmith"
@@ -180,7 +201,6 @@ class UserHandlerTest(AsyncHandlerTest):
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
 
         self.assertResponseCodeEqual(resp, 400)
-
 
     @gen_test
     @requires_database
@@ -495,34 +515,6 @@ class UserHandlerTest(AsyncHandlerTest):
 
     @gen_test
     @requires_database
-    async def test_default_avatar_for_new_user(self):
-
-        body = {
-            "username": 'BobSmith',
-            "payment_address": TEST_PAYMENT_ADDRESS
-        }
-
-        resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="POST", body=body)
-
-        self.assertResponseCodeEqual(resp, 200)
-
-        body = json_decode(resp.body)
-
-        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
-
-        async with self.pool.acquire() as con:
-            row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
-        self.assertIsNone(row['avatar'])
-
-        resp = await self.fetch("/user/BobSmith", method="GET")
-        self.assertEqual(resp.code, 200)
-        data = json_decode(resp.body)
-        self.assertIsNotNone(data['avatar'])
-        # make sure it's a full url
-        self.assertTrue(data['avatar'].startswith('http'))
-
-    @gen_test
-    @requires_database
     async def test_update_user_from_custom(self):
         """backwards compat test"""
 
@@ -619,6 +611,7 @@ class AppHandlerTestWithForcedPublic(AsyncHandlerTest):
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_create_app_user(self):
 
         resp = await self.fetch("/timestamp")

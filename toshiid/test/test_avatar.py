@@ -3,7 +3,9 @@ import unittest
 import mimetypes
 import blockies
 import piexif
+import regex
 import os
+import urllib.parse
 from io import BytesIO
 
 from uuid import uuid4
@@ -13,7 +15,8 @@ from tornado.platform.asyncio import to_asyncio_future
 from tornado.ioloop import IOLoop
 
 from toshiid.app import urls
-from toshiid.handlers import EXIF_ORIENTATION, AVATAR_URL_HASH_LENGTH
+from toshiid.handlers import AVATAR_URL_HASH_LENGTH
+from toshi.test.moto_server import requires_moto, BotoTestMixin
 from toshi.analytics import encode_id
 from toshi.test.database import requires_database
 from toshi.test.base import AsyncHandlerTest
@@ -45,18 +48,19 @@ def body_producer(boundary, files):
     write('--{}--\r\n'.format(boundary).encode('utf-8'))
     return buf.getbuffer().tobytes()
 
-class UserAvatarHandlerTest(AsyncHandlerTest):
+class UserAvatarHandlerTest(BotoTestMixin, AsyncHandlerTest):
 
     def get_urls(self):
         return urls
 
     def get_url(self, path):
-        if not path.startswith("/avatar"):
+        if not path.startswith("http://") and not path.startswith("https://"):
             path = "/v1{}".format(path)
         return super().get_url(path)
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_update_user_avatar(self):
 
         capitalised = 'BobSmith'
@@ -77,25 +81,23 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
-            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
             urow = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
-        self.assertIsNotNone(arow)
-        self.assertEqual(arow['img'], files[0][1])
         self.assertIsNotNone(urow)
         self.assertIsNotNone(urow['avatar'])
-        first_avatar_url = "/avatar/{}_{}.png".format(TEST_ADDRESS, arow['hash'][:AVATAR_URL_HASH_LENGTH])
-        self.assertEqual(urow['avatar'], first_avatar_url)
+        self.assertIsNotNone(
+            regex.match("\/[^\/]+\/public\/avatar\/{}_[a-f0-9]{{{}}}\.png".format(TEST_ADDRESS, AVATAR_URL_HASH_LENGTH),
+                        urllib.parse.urlparse(urow['avatar']).path), urow['avatar'])
 
-        for url in [first_avatar_url, "/avatar/{}.png".format(TEST_ADDRESS)]:
-            resp = await self.fetch(url, method="GET")
-            self.assertEqual(resp.code, 200, "Got unexpected {} for url: {} (hash: {})".format(resp.code, url, arow['hash']))
-            # easy to test png, it doesn't change so easily when "double" saved
-            self.assertEqual(resp.body, png)
-            self.assertIn('Etag', resp.headers)
-            last_etag = resp.headers['Etag']
-            self.assertIn('Last-Modified', resp.headers)
-            last_modified = resp.headers['Last-Modified']
+        first_avatar_url = urow['avatar']
+        resp = await self.fetch(first_avatar_url, method="GET")
+        self.assertEqual(resp.code, 200, "Got unexpected {} for url: {}".format(resp.code, first_avatar_url))
+        # easy to test png, it doesn't change so easily when "double" saved
+        self.assertEqual(resp.body, png)
+        self.assertIn('Etag', resp.headers)
+        last_etag = resp.headers['Etag']
+        self.assertIn('Last-Modified', resp.headers)
+        last_modified = resp.headers['Last-Modified']
 
         # try update with jpeg
         jpeg = blockies.create(TEST_ADDRESS_2, size=8, scale=12, format='JPEG')
@@ -121,7 +123,16 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         # ensure we got a tracking event
         self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
 
-        resp = await self.fetch("/avatar/{}.jpg".format(TEST_ADDRESS), method="GET", headers={
+        async with self.pool.acquire() as con:
+            urow = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
+        self.assertIsNotNone(urow)
+        self.assertIsNotNone(urow['avatar'])
+        self.assertIsNotNone(
+            regex.match("\/[^\/]+\/public\/avatar\/{}_[a-f0-9]{{{}}}\.jpg".format(TEST_ADDRESS, AVATAR_URL_HASH_LENGTH),
+                        urllib.parse.urlparse(urow['avatar']).path))
+        jpg_avatar_url = urow['avatar']
+
+        resp = await self.fetch(jpg_avatar_url, method="GET", headers={
             'If-None-Match': last_etag,
             'If-Modified-Since': last_modified
         })
@@ -131,11 +142,12 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertNotEqual(resp.body, png)
 
         # check for 304 when trying with new values
-        resp304 = await self.fetch("/avatar/{}.jpg".format(TEST_ADDRESS), method="GET", headers={
-            'If-None-Match': resp.headers['Etag'],
-            'If-Modified-Since': resp.headers['Last-Modified']
-        })
-        self.assertResponseCodeEqual(resp304, 304)
+        # NOTE (TODO): moto_server doesn't return 304, but s3 itself does
+        # resp304 = await self.fetch(jpg_avatar_url, method="GET", headers={
+        #     'If-None-Match': resp.headers['Etag'],
+        #     'If-Modified-Since': resp.headers['Last-Modified']
+        # })
+        # self.assertResponseCodeEqual(resp304, 304)
 
         # check that avatar stays after other update
         presp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
@@ -145,16 +157,21 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
                                         })
         self.assertResponseCodeEqual(presp, 200)
         data = json_decode(presp.body)
-        urlend = "/avatar/{}_{}.jpg".format(TEST_ADDRESS, resp.headers['Etag'][1:AVATAR_URL_HASH_LENGTH + 1])
-        self.assertTrue(data['avatar'].endswith(urlend), "{} does not end with {}".format(data['avatar'], urlend))
+        self.assertEqual(data['avatar'], jpg_avatar_url)
 
         # make sure the original url is still available
         resp = await self.fetch(first_avatar_url, method="GET")
         self.assertResponseCodeEqual(resp, 200)
         self.assertEqual(resp.body, png)
 
+        async with self.boto:
+            objs = await self.boto.list_objects()
+        self.assertIn('Contents', objs)
+        self.assertEqual(len(objs['Contents']), 2)
+
     @gen_test
     @requires_database
+    @requires_moto
     async def test_update_user_avatar_with_specific_toshi_id_handler(self):
 
         capitalised = 'BobSmith'
@@ -175,17 +192,20 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
         self.assertResponseCodeEqual(resp, 200)
 
         async with self.pool.acquire() as con:
-            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
             urow = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
-        self.assertIsNotNone(arow)
-        self.assertEqual(arow['img'], files[0][1])
         self.assertIsNotNone(urow)
         self.assertIsNotNone(urow['avatar'])
-        self.assertEqual(urow['avatar'], "/avatar/{}_{}.png".format(TEST_ADDRESS, arow['hash'][:AVATAR_URL_HASH_LENGTH]))
+        self.assertIsNotNone(
+            regex.match("\/[^\/]+\/public\/avatar\/{}_[a-f0-9]{{{}}}\.png".format(TEST_ADDRESS, AVATAR_URL_HASH_LENGTH),
+                        urllib.parse.urlparse(urow['avatar']).path), urow['avatar'])
+        resp = await self.fetch(urow['avatar'], method="GET")
+        self.assertEqual(resp.code, 200, "Got unexpected {} for url: {}".format(resp.code, urow['avatar']))
+        self.assertEqual(resp.body, png)
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_send_bad_data(self):
 
         capitalised = 'BobSmith'
@@ -203,16 +223,13 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
 
         self.assertResponseCodeEqual(resp, 400)
 
-        async with self.pool.acquire() as con:
-            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
-
-        self.assertIsNone(arow)
-
-        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
-        self.assertResponseCodeEqual(resp, 404)
+        async with self.boto:
+            objs = await self.boto.list_objects()
+        self.assertNotIn('Contents', objs)
 
     @gen_test
     @requires_database
+    @requires_moto
     async def test_send_bad_filename(self):
 
         capitalised = 'BobSmith'
@@ -230,17 +247,14 @@ class UserAvatarHandlerTest(AsyncHandlerTest):
 
         self.assertResponseCodeEqual(resp, 400)
 
-        async with self.pool.acquire() as con:
-            arow = await con.fetchrow("SELECT * FROM avatars WHERE toshi_id = $1", TEST_ADDRESS)
-
-        self.assertIsNone(arow)
-
-        resp = await self.fetch("/avatar/{}.png".format(TEST_ADDRESS), method="GET")
-        self.assertResponseCodeEqual(resp, 404)
+        async with self.boto:
+            objs = await self.boto.list_objects()
+        self.assertNotIn('Contents', objs)
 
     @unittest.skip("test uses too much memory to run on circleci")
     @gen_test(timeout=300)
     @requires_database
+    @requires_moto
     async def test_send_large_file(self):
         """Tests uploading a large avatar and makes sure it doesn't block
         other processes"""

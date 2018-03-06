@@ -11,6 +11,7 @@ import datetime
 import hashlib
 
 from toshi.database import DatabaseMixin
+from toshi.boto import BotoMixin
 from toshi.errors import JSONHTTPError
 from toshi.log import log
 from decimal import Decimal
@@ -168,7 +169,12 @@ def process_image(data, mime_type):
 
     return data, cache_hash, format
 
-class UserMixin(RequestVerificationMixin, AnalyticsMixin):
+def create_identitcon(address, format='PNG'):
+    if format == 'JPG':
+        format = 'JPEG'
+    return blockies.create(address, size=8, scale=12, format=format.upper())
+
+class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
 
     def is_superuser(self, toshi_id):
         return 'superusers' in self.application.config and \
@@ -323,12 +329,12 @@ class UserMixin(RequestVerificationMixin, AnalyticsMixin):
 
         data, cache_hash, format = await self.run_in_executor(process_image, data, mime_type)
 
+        boto_key = "public/avatar/{}_{}.{}".format(toshi_id, cache_hash[:AVATAR_URL_HASH_LENGTH], 'jpg' if format == 'JPEG' else 'png')
+        async with self.boto:
+            await self.boto.put_object(key=boto_key, body=data)
+            avatar_url = self.boto.url_for_object(boto_key)
+
         async with self.db:
-            await self.db.execute("INSERT INTO avatars (toshi_id, img, hash, format) VALUES ($1, $2, $3, $4) "
-                                  "ON CONFLICT (toshi_id, hash) DO UPDATE "
-                                  "SET img = EXCLUDED.img, format = EXCLUDED.format, last_modified = (now() AT TIME ZONE 'utc')",
-                                  toshi_id, data, cache_hash, format)
-            avatar_url = "/avatar/{}_{}.{}".format(toshi_id, cache_hash[:AVATAR_URL_HASH_LENGTH], 'jpg' if format == 'JPEG' else 'png')
             await self.db.execute("UPDATE users SET avatar = $1 WHERE toshi_id = $2", avatar_url, toshi_id)
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
@@ -424,6 +430,13 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
             location = None
+
+        identicon_data = await self.run_in_executor(create_identitcon, toshi_id)
+        key = "public/identicon/{}.png".format(toshi_id)
+        async with self.boto:
+            await self.boto.put_object(key=key, body=identicon_data)
+            if avatar is None:
+                avatar = self.boto.url_for_object(key)
 
         async with self.db:
             await self.db.execute("INSERT INTO users "
