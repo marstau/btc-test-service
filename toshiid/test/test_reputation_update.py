@@ -4,6 +4,7 @@ from toshiid.app import urls
 from toshi.test.database import requires_database
 from toshi.test.base import AsyncHandlerTest
 from toshi.ethereum.utils import data_decoder
+from toshi.config import config
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -25,7 +26,7 @@ class UserHandlerTest(AsyncHandlerTest):
     @requires_database
     async def test_update_reputation(self):
 
-        self._app.config['reputation'] = {'id': TEST_ADDRESS}
+        config['reputation'] = {'id': TEST_ADDRESS}
 
         async with self.pool.acquire() as con:
             await con.execute("INSERT INTO users (toshi_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)
@@ -49,7 +50,7 @@ class UserHandlerTest(AsyncHandlerTest):
     @requires_database
     async def test_cannot_update_when_sender_address_is_wrong(self):
 
-        self._app.config['reputation'] = {'id': TEST_ADDRESS_2}
+        config['reputation'] = {'id': TEST_ADDRESS_2}
 
         async with self.pool.acquire() as con:
             await con.execute("INSERT INTO users (toshi_id) VALUES ($1)", TEST_PAYMENT_ADDRESS)

@@ -4,6 +4,7 @@ from toshiid.app import urls
 from toshi.test.database import requires_database
 from toshi.test.base import AsyncHandlerTest
 from toshi.ethereum.utils import data_decoder
+from toshi.config import config
 
 TEST_PRIVATE_KEY = data_decoder("0xe8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35")
 TEST_ADDRESS = "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -26,7 +27,7 @@ class SuperuserUpdateTest(AsyncHandlerTest):
     async def test_superuser_update_user(self):
 
         # set superuser config
-        self._app.config['superusers'] = {"{}".format(TEST_ADDRESS): 1}
+        config['superusers'] = {"{}".format(TEST_ADDRESS): 1}
 
         default_username = 'user12345'
 
@@ -58,7 +59,7 @@ class SuperuserUpdateTest(AsyncHandlerTest):
     async def test_superuser_update_user_2(self):
 
         # set superuser config
-        self._app.config['superusers'] = {"{}".format(TEST_ADDRESS): 1}
+        config['superusers'] = {"{}".format(TEST_ADDRESS): 1}
 
         default_username = 'user12345'
 
@@ -119,7 +120,7 @@ class SuperuserUpdateTest(AsyncHandlerTest):
         self.assertEqual(row2['username'], default_username2)
 
         # set superuser config to something not being user
-        self._app.config['superusers'] = {"{}".format(TEST_PAYMENT_ADDRESS): 1}
+        config['superusers'] = {"{}".format(TEST_PAYMENT_ADDRESS): 1}
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
             "name": name,
@@ -163,7 +164,7 @@ class SuperuserUpdateTest(AsyncHandlerTest):
     async def test_non_superuser_update_own_user_ok(self):
 
         # set superuser config
-        self._app.config['superusers'] = {"{}".format(TEST_PAYMENT_ADDRESS): 1}
+        config['superusers'] = {"{}".format(TEST_PAYMENT_ADDRESS): 1}
 
         default_username = 'user12345'
 
@@ -193,7 +194,7 @@ class SuperuserUpdateTest(AsyncHandlerTest):
     async def test_non_superuser_update_own_user_ok_2(self):
 
         # set superuser config
-        self._app.config['superusers'] = {"{}".format(TEST_PAYMENT_ADDRESS): 1}
+        config['superusers'] = {"{}".format(TEST_PAYMENT_ADDRESS): 1}
 
         default_username = 'user12345'
 

@@ -62,9 +62,7 @@ class HousekeepingTest(AsyncHandlerTest):
         self.assertEqual(len(body['results']), 5)
 
         housekeeping = HousekeepingApplication(
-            config=self._app.config,
-            connection_pool=self._app.connection_pool,
-            delay=1)
+            delay=0.5)
         housekeeping.start()
         await asyncio.sleep(0.1)
 
@@ -81,3 +79,5 @@ class HousekeepingTest(AsyncHandlerTest):
         self.assertEqual(resp.code, 200)
         body = json_decode(resp.body)
         self.assertEqual(len(body['results']), 0)
+
+        housekeeping.shutdown()

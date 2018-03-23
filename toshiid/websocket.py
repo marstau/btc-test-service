@@ -4,7 +4,7 @@ import uuid
 import tornado.websocket
 import tornado.ioloop
 
-from toshi.database import DatabaseMixin
+from toshi.database import DatabaseMixin, get_database_pool
 from toshi.handlers import RequestVerificationMixin
 from toshi.jsonrpc.handlers import JsonRPCBase
 
@@ -21,10 +21,6 @@ class WebsocketHandler(tornado.websocket.WebSocketHandler, RequestVerificationMi
 
     KEEP_ALIVE_TIMEOUT = 30
     SESSION_CLOSE_TIMEOUT = 30
-
-    @property
-    def connection_pool(self):
-        return self.application.connection_pool
 
     @tornado.web.asynchronous
     def get(self, *args, **kwargs):
@@ -75,7 +71,7 @@ class WebsocketHandler(tornado.websocket.WebSocketHandler, RequestVerificationMi
 
     async def set_connected(self):
 
-        async with self.connection_pool.acquire() as con:
+        async with get_database_pool().acquire() as con:
             await con.execute("INSERT INTO websocket_sessions (websocket_session_id, toshi_id) VALUES ($1, $2) "
                               "ON CONFLICT (websocket_session_id) DO UPDATE "
                               "SET last_seen = (now() AT TIME ZONE 'utc')",
@@ -83,6 +79,6 @@ class WebsocketHandler(tornado.websocket.WebSocketHandler, RequestVerificationMi
 
     async def set_not_connected(self):
 
-        async with self.connection_pool.acquire() as con:
+        async with get_database_pool().acquire() as con:
             await con.execute("DELETE FROM websocket_sessions WHERE websocket_session_id = $1",
                               self.session_id)

@@ -13,6 +13,7 @@ import hashlib
 from toshi.database import DatabaseMixin
 from toshi.boto import BotoMixin
 from toshi.errors import JSONHTTPError
+from toshi.config import config
 from toshi.log import log
 from decimal import Decimal
 from toshi.handlers import (BaseHandler,
@@ -177,8 +178,8 @@ def create_identitcon(address, format='PNG'):
 class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
 
     def is_superuser(self, toshi_id):
-        return 'superusers' in self.application.config and \
-            toshi_id in self.application.config['superusers']
+        return 'superusers' in config and \
+            toshi_id in config['superusers']
 
     async def update_user(self, toshi_id):
 
@@ -235,7 +236,7 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
                 is_app = parse_boolean(payload['is_app'])
                 if not isinstance(is_app, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-                if self.application.config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
+                if config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
                     payload['public'] = is_app
                 await self.db.execute("UPDATE users SET is_app = $1 WHERE toshi_id = $2", is_app, toshi_id)
 
@@ -391,7 +392,7 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             is_app = parse_boolean(payload['is_app'])
             if is_app is None:
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-            if is_app is True and self.application.config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
+            if is_app is True and config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
                 payload['public'] = is_app
         else:
             is_app = False
@@ -622,7 +623,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             # force featured if top + apps
             elif top is True:
                 featured = True
-            if self.application.config['general'].getboolean('apps_dont_require_websocket'):
+            if config['general'].getboolean('apps_dont_require_websocket'):
                 check_connected = False
             else:
                 check_connected = True
@@ -963,7 +964,7 @@ class ReputationUpdateHandler(RequestVerificationMixin, AnalyticsMixin, Database
 
     async def post(self):
 
-        if 'reputation' not in self.application.config or 'id' not in self.application.config['reputation']:
+        if 'reputation' not in config or 'id' not in config['reputation']:
             raise HTTPError(404)
 
         try:
@@ -971,7 +972,7 @@ class ReputationUpdateHandler(RequestVerificationMixin, AnalyticsMixin, Database
         except JSONHTTPError:
             raise HTTPError(404)
 
-        if address != self.application.config['reputation']['id']:
+        if address != config['reputation']['id']:
             raise HTTPError(404)
 
         if not all(x in self.json for x in ['toshi_id', 'reputation_score', 'review_count', 'average_rating']):

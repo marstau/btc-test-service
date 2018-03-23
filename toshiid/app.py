@@ -1,9 +1,29 @@
-import toshi.web
 import os
+import toshi.web
 from . import handlers
 from . import websocket
 from . import login
 from toshi.handlers import GenerateTimestamp
+import toshi.config
+
+def update_config():
+    if 'REPUTATION_SERVICE_ID' in os.environ:
+        toshi.config.config['reputation'] = {'id': os.environ['REPUTATION_SERVICE_ID'].lower()}
+    if 'SUPERUSER_TOSHI_ID' in os.environ:
+        # using a dict because configparser doesn't support lists,
+        # and having the toshi id's as keys lets us use `in`.
+        toshi.config.config['superusers'] = {
+            toshi_id.strip(): 1 for toshi_id in os.environ['SUPERUSER_TOSHI_ID'].lower().split(',')
+        }
+    if 'APPS_DONT_REQUIRE_WEBSOCKET' in os.environ:
+        toshi.config.config['general']['apps_dont_require_websocket'] = os.environ['APPS_DONT_REQUIRE_WEBSOCKET']
+    elif 'apps_dont_require_websocket' not in toshi.config.config['general']:
+        toshi.config.config['general']['apps_dont_require_websocket'] = 'false'
+
+    if 'APPS_PUBLIC_BY_DEFAULT' in os.environ:
+        toshi.config.config['general']['apps_public_by_default'] = os.environ['APPS_PUBLIC_BY_DEFAULT']
+    elif 'apps_public_by_default' not in toshi.config.config['general']:
+        toshi.config.config['general']['apps_public_by_default'] = 'false'
 
 urls = [
     (r"^/v1/timestamp/?$", GenerateTimestamp),
@@ -38,33 +58,7 @@ urls = [
     (r"^/v1/ws/?$", websocket.WebsocketHandler),
 ]
 
-class Application(toshi.web.Application):
-
-    def process_config(self):
-        config = super(Application, self).process_config()
-
-        if 'REPUTATION_SERVICE_ID' in os.environ:
-            config['reputation'] = {'id': os.environ['REPUTATION_SERVICE_ID'].lower()}
-
-        if 'SUPERUSER_TOSHI_ID' in os.environ:
-            # using a dict because configparser doesn't support lists,
-            # and having the toshi id's as keys lets us use `in`.
-            config['superusers'] = {
-                toshi_id.strip(): 1 for toshi_id in os.environ['SUPERUSER_TOSHI_ID'].lower().split(',')
-            }
-
-        if 'APPS_DONT_REQUIRE_WEBSOCKET' in os.environ:
-            config['general']['apps_dont_require_websocket'] = os.environ['APPS_DONT_REQUIRE_WEBSOCKET']
-        elif 'apps_dont_require_websocket' not in config['general']:
-            config['general']['apps_dont_require_websocket'] = 'false'
-
-        if 'APPS_PUBLIC_BY_DEFAULT' in os.environ:
-            config['general']['apps_public_by_default'] = os.environ['APPS_PUBLIC_BY_DEFAULT']
-        elif 'apps_public_by_default' not in config['general']:
-            config['general']['apps_public_by_default'] = 'false'
-
-        return config
-
 def main():
-    app = Application(urls)
+    update_config()
+    app = toshi.web.Application(urls)
     app.start()
