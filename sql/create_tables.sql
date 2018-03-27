@@ -41,12 +41,6 @@ CREATE INDEX IF NOT EXISTS idx_users_tsv ON users USING gin(tsv);
 
 CREATE INDEX IF NOT EXISTS idx_users_went_public ON users (went_public DESC NULLS LAST);
 
-CREATE TABLE IF NOT EXISTS auth_tokens (
-    token VARCHAR PRIMARY KEY,
-    address VARCHAR,
-    created TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc')
-);
-
 CREATE FUNCTION users_search_trigger() RETURNS TRIGGER AS $$
 BEGIN
     NEW.tsv :=
@@ -111,4 +105,4 @@ CREATE TABLE IF NOT EXISTS websocket_sessions (
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_toshi_id ON websocket_sessions (toshi_id);
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_last_seen ON websocket_sessions (last_seen DESC);
 
-UPDATE database_version SET version_number = 25;
+UPDATE database_version SET version_number = 26;
