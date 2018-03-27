@@ -95,14 +95,14 @@ class LoginHandlerTest(AsyncHandlerTest):
 
         fs = []
         LIMIT = 1000
-        TIMEOUT = 2.0
+        TIMEOUT = 1.0
         for i in range(0, LIMIT):
             c = AsyncHTTPClient(force_instance=True)
             f = asyncio.ensure_future(c.fetch(
                 self.get_url("/login/{}".format(request_token.format(i))),
                 request_timeout=60.0 if i == 0 or i == LIMIT - 1 else TIMEOUT))
             fs.append(f)
-            if i % 100 == 0 or i == LIMIT - 1:
+            if i % 10 == 0 or i == LIMIT - 1:
                 await asyncio.sleep(0)
 
         resp = await self.fetch_signed("/login/{}".format(request_token.format(0)), signing_key=TEST_PRIVATE_KEY, method="GET")
