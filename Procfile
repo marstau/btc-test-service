@@ -1,2 +1,2 @@
-web: bin/start-stunnel python -m toshiid --port=$PORT --config=$CONFIGFILE
-housekeeping: bin/start-stunnel python -m toshiid.housekeeping
+web: python -m toshiid --port=$PORT
+housekeeping: python -m toshiid.housekeeping
