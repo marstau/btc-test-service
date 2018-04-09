@@ -6,7 +6,7 @@ from tornado.escape import json_decode
 from tornado.testing import gen_test
 
 from toshiid.app import urls
-from toshiid.handlers import generate_username
+from toshiid.handlers_v1 import generate_username
 from toshi.analytics import encode_id
 from toshi.test.moto_server import requires_moto, BotoTestMixin
 from toshi.test.database import requires_database

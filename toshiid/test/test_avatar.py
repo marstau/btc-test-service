@@ -15,7 +15,7 @@ from tornado.platform.asyncio import to_asyncio_future
 from tornado.ioloop import IOLoop
 
 from toshiid.app import urls
-from toshiid.handlers import AVATAR_URL_HASH_LENGTH
+from toshiid.handlers_v1 import AVATAR_URL_HASH_LENGTH
 from toshi.test.moto_server import requires_moto, BotoTestMixin
 from toshi.analytics import encode_id
 from toshi.test.database import requires_database

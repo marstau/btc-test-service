@@ -3,10 +3,9 @@ import os
 
 from toshi.database import DatabaseMixin
 from toshi.errors import JSONHTTPError
-from datetime import datetime, timedelta
 from toshi.ethereum.utils import data_encoder
 from toshi.handlers import BaseHandler, RequestVerificationMixin
-from toshiid.handlers import user_row_for_json
+from toshiid.handlers_v1 import user_row_for_json
 from toshi.redis import RedisMixin, get_redis_connection
 from toshi.log import log
 

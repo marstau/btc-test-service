@@ -1,8 +1,8 @@
 import os
 import toshi.web
-from . import handlers
-from . import websocket
-from . import login
+from toshiid import handlers_v1
+from toshiid import websocket
+from toshiid import login
 from toshi.handlers import GenerateTimestamp
 import toshi.config
 
@@ -33,26 +33,26 @@ urls = [
     (r"^/v1/login/verify/([a-zA-Z0-9]+)/?$", login.WhoDisHandler),
 
     # standard endpoints
-    (r"^/v1/user/?$", handlers.UserCreationHandler),
-    (r"^/v1/user/(?P<username>[^/]+)/?$", handlers.UserHandler),
-    (r"^/v1/search/user/?$", handlers.SearchUserHandler),
+    (r"^/v1/user/?$", handlers_v1.UserCreationHandler),
+    (r"^/v1/user/(?P<username>[^/]+)/?$", handlers_v1.UserHandler),
+    (r"^/v1/search/user/?$", handlers_v1.SearchUserHandler),
     # app endpoints
-    (r"^/v1/apps/(?P<username>0x[a-fA-F0-9]{40})/?$", handlers.UserHandler, {'apps_only': True}),
-    (r"^/v1/(?:search/)?apps/?$", handlers.SearchUserHandler, {'force_apps': True}),
-    (r"^/v1/(?:search/)?apps/featured/?$", handlers.SearchUserHandler,
+    (r"^/v1/apps/(?P<username>0x[a-fA-F0-9]{40})/?$", handlers_v1.UserHandler, {'apps_only': True}),
+    (r"^/v1/(?:search/)?apps/?$", handlers_v1.SearchUserHandler, {'force_apps': True}),
+    (r"^/v1/(?:search/)?apps/featured/?$", handlers_v1.SearchUserHandler,
      {'force_apps': True, 'force_featured': True}),
-    (r"^/v1/(?:search/)?dapps/?$", handlers.SearchDappHandler),
+    (r"^/v1/(?:search/)?dapps/?$", handlers_v1.SearchDappHandler),
 
-    (r"^/v1/report/?$", handlers.ReportHandler),
+    (r"^/v1/report/?$", handlers_v1.ReportHandler),
     # categories
-    (r"^/v1/categories", handlers.CategoryHandler),
+    (r"^/v1/categories", handlers_v1.CategoryHandler),
 
     # avatar endpoints
-    (r"^/identicon/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers.IdenticonHandler),
-    (r"^/avatar/(?P<address>0x[0-9a-fA-f]{40})(?:_(?P<hash>[a-fA-F0-9]+))?\.(?P<format>[a-zA-Z]{3})$", handlers.AvatarHandler),
+    (r"^/identicon/(?P<address>0x[0-9a-fA-f]{40})\.(?P<format>[a-zA-Z]{3})$", handlers_v1.IdenticonHandler),
+    (r"^/avatar/(?P<address>0x[0-9a-fA-f]{40})(?:_(?P<hash>[a-fA-F0-9]+))?\.(?P<format>[a-zA-Z]{3})$", handlers_v1.AvatarHandler),
 
     # reputation update endpoint
-    (r"^/v1/reputation/?$", handlers.ReputationUpdateHandler),
+    (r"^/v1/reputation/?$", handlers_v1.ReputationUpdateHandler),
 
     # websocket
     (r"^/v1/ws/?$", websocket.WebsocketHandler),
