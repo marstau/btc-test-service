@@ -141,7 +141,8 @@ class LoginHandler(RequestVerificationMixin, RedisMixin, DatabaseMixin, BaseHand
 
     def on_connection_close(self):
         super().on_connection_close()
-        self._future.cancel()
+        if hasattr(self, '_future'):
+            self._future.cancel()
 
     async def on_login(self, address):
 
