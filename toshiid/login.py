@@ -5,7 +5,7 @@ from toshi.database import DatabaseMixin
 from toshi.errors import JSONHTTPError
 from toshi.ethereum.utils import data_encoder
 from toshi.handlers import BaseHandler, RequestVerificationMixin
-from toshiid.handlers_v1 import user_row_for_json
+from toshiid.handlers_v2 import user_row_for_json
 from toshi.redis import RedisMixin, get_redis_connection
 from toshi.log import log
 
@@ -210,6 +210,6 @@ class WhoDisHandler(DatabaseMixin, RedisMixin, BaseHandler):
                 user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1",
                                               toshi_id)
             if user:
-                self.write(user_row_for_json(self.request, user))
+                self.write(user_row_for_json(user))
                 return
         raise JSONHTTPError(404)

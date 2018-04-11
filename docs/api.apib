@@ -9,7 +9,7 @@ In the long run, we would like to migrate this service to a decentalized identit
 
 
 # Group Users
-## User Registration [/v1/user]
+## User Registration [/v2/user]
 
 Used to register a new username and associate it with a toshi id.
 The toshi id address is extracted from the signature.
@@ -27,7 +27,7 @@ The toshi id address is extracted from the signature.
     + Body
 
         {
-            "about": "I'm a digital Dingus",
+            "description": "I'm a digital Dingus",
             "name": "Dingus McDingusface",
             "username": "testuser",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
@@ -37,14 +37,13 @@ The toshi id address is extracted from the signature.
 
         {
             "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "type": "user",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
-            "is_app": false,
             "name": "Dingus McDingusface",
-            "about": "I'm a digital Dingus",
-            "avatar": null,
+            "description": "I'm a digital Dingus",
+            "avatar": "https://avatar-url/file.png",
             "location": null,
-            "public": true,
             "reputation_score": null,
             "review_count": 0,
             "average_rating": 0
@@ -108,14 +107,13 @@ The toshi id address is extracted from the signature.
 
         {
             "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "type": "user",
             "payment_address": null,
-            "username": "testuser",
-            "is_app": false,
+            "username": "user12341",
             "name": null,
-            "about": null,
-            "avatar": null,
+            "description": null,
+            "avatar": "https://avatar-url/file.png",
             "location": null,
-            "public": true,
             "reputation_score": null,
             "review_count": 0,
             "average_rating": 0
@@ -132,9 +130,9 @@ The toshi id address is extracted from the signature.
             ]
         }
 
-### Register an app/bot based user [POST]
+### Register an bot based user [POST]
 
-Used when the registered id represents an app/bot, used by the services to know special handling of these users may be required.
+Used when the registered id represents an bot, used by the services to know special handling of these users may be required.
 
 + Request (application/json)
 
@@ -147,7 +145,7 @@ Used when the registered id represents an app/bot, used by the services to know 
     + Body
 
         {
-            "is_app": true,
+            "bot": true,
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf"
         }
 
@@ -155,12 +153,12 @@ Used when the registered id represents an app/bot, used by the services to know 
 
         {
             "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "type": "bot",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
             "name": null,
-            "is_app": true,
-            "about": null,
-            "avatar": null,
+            "description": null,
+            "avatar": "https://avatar-url/file.png",
             "location": null
             "public": true,
             "reputation_score": null,
@@ -183,12 +181,12 @@ Used when the registered id represents an app/bot, used by the services to know 
 ### Update a user [PUT]
 
 Used to update a user's profile.
- + Available Body Properties: `payment_address`, `username`, `about`, `name`, `avatar`, `location`
+ + Available Body Properties: `payment_address`, `username`, `description`, `name`, `avatar`, `location`
  + App only properties
   + `categories`: A list of category id's or tags
  + Special Body Properties:
   + `public`: makes a user's profile publicly visible in the browse page
-  + `is_app`: marks the user as an app
+  + `bot`: marks the user as a bot
 
 + Request (application/json)
 
@@ -218,7 +216,7 @@ Used to update a user's profile.
         {
             "username": "toshibot",
             "name": "ToshiBot",
-            "is_app": true,
+            "bot": true,
             "categories": ["social", "cats"]
         }
 
@@ -241,9 +239,9 @@ Used to update a user's profile.
 
         {
             "toshi_id": "0x676f7cb80c9ff6a55e8992d94bac9a3212282c3a",
+            "type": "user",
             "payment_address": "0x056db290f8ba3250ca64a45d16284d04bc6f5fbf",
             "username": "testuser",
-            "is_app": false,
             "about": "I'm a digital Dingus",
             "name": "Dingus McDingusface",
             "avatar": "<url for new avatar>",

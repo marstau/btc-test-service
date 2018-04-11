@@ -3,6 +3,7 @@ import toshi.web
 from toshiid import handlers_v1
 from toshiid import websocket
 from toshiid import login
+from toshiid import search_v2
 from toshi.handlers import GenerateTimestamp
 import toshi.config
 
@@ -26,6 +27,9 @@ def update_config():
         toshi.config.config['general']['apps_public_by_default'] = 'false'
 
 urls = [
+
+    # #### VERSION 1 #### #
+
     (r"^/v1/timestamp/?$", GenerateTimestamp),
 
     # api endpoint for remote login
@@ -56,6 +60,13 @@ urls = [
 
     # websocket
     (r"^/v1/ws/?$", websocket.WebsocketHandler),
+
+    # #### VERSION 2 #### #
+
+    (r"^/v2/user/?$", handlers_v1.UserCreationHandler, {'api_version': 2}),
+    (r"^/v2/user/(?P<username>[^/]+)/?$", handlers_v1.UserHandler, {'api_version': 2}),
+    (r"^/v2/search/?$", search_v2.SearchHandler),
+
 ]
 
 def main():

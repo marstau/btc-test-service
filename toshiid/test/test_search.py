@@ -10,7 +10,7 @@ from toshi.ethereum.utils import data_encoder, private_key_to_address
 
 from urllib.parse import quote_plus, quote as quote_arg
 
-from toshiid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS
+from toshiid.test.test_user_v1 import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS
 
 class SearchUserHandlerTest(AsyncHandlerTest):
 
@@ -148,7 +148,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             for args in users + bots:
-                await con.execute("INSERT INTO users (username, toshi_id, is_app) VALUES ($1, $2, $3)", *args)
+                await con.execute("INSERT INTO users (username, toshi_id, is_bot) VALUES ($1, $2, $3)", *args)
 
         resp = await self.fetch("/search/user?query=bo", method="GET")
         self.assertEqual(resp.code, 200)
@@ -421,7 +421,7 @@ class SearchUserHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_bot) VALUES ($1, $2, $3, $4, $5, $6, $7)",
                 insert_vals)
 
         resp = await self.fetch("/search/user?limit={}".format(i + 1), method="GET")

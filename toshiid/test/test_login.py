@@ -1,7 +1,7 @@
 import asyncio
 from tornado.escape import json_decode
 from tornado.testing import gen_test
-from tornado.httpclient import AsyncHTTPClient, HTTPError
+from tornado.httpclient import AsyncHTTPClient
 
 from toshiid.app import urls
 from toshi.test.database import requires_database
@@ -9,7 +9,7 @@ from toshi.test.redis import requires_redis
 from toshi.test.base import AsyncHandlerTest
 from toshiid.login import LoginManager
 
-from toshiid.test.test_user import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS, TEST_ADDRESS_2
+from toshiid.test.test_user_v1 import TEST_PRIVATE_KEY, TEST_ADDRESS, TEST_PAYMENT_ADDRESS, TEST_ADDRESS_2
 
 class LoginHandlerTest(AsyncHandlerTest):
 
@@ -50,7 +50,7 @@ class LoginHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/login/verify/{}".format(auth_token))
         self.assertResponseCodeEqual(resp, 200)
         body = json_decode(resp.body)
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
 
         # make sure tokens are single use
         resp = await self.fetch("/login/verify/{}".format(auth_token))
@@ -81,7 +81,7 @@ class LoginHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/login/verify/{}".format(auth_token))
         self.assertResponseCodeEqual(resp, 200)
         body = json_decode(resp.body)
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
 
     @gen_test(timeout=500)
     @requires_database
@@ -118,7 +118,7 @@ class LoginHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/login/verify/{}".format(auth_token))
         self.assertResponseCodeEqual(resp, 200)
         body = json_decode(resp.body)
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
 
         resp = await self.fetch_signed("/login/{}".format(request_token.format(LIMIT - 1)), signing_key=TEST_PRIVATE_KEY, method="GET")
         self.assertResponseCodeEqual(resp, 204)
@@ -133,7 +133,7 @@ class LoginHandlerTest(AsyncHandlerTest):
         resp = await self.fetch("/login/verify/{}".format(auth_token))
         self.assertResponseCodeEqual(resp, 200)
         body = json_decode(resp.body)
-        self.assertEqual(body['token_id'], TEST_ADDRESS)
+        self.assertEqual(body['toshi_id'], TEST_ADDRESS)
 
         await asyncio.sleep(TIMEOUT)
 

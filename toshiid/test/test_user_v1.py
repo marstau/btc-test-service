@@ -59,7 +59,7 @@ class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertFalse(row['is_app'])
+        self.assertFalse(row['is_bot'])
 
         self.assertIsNotNone(row['username'])
 
@@ -100,7 +100,7 @@ class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertTrue(row['is_app'])
+        self.assertTrue(row['is_bot'])
 
         # ensure we got a tracking event
         self.assertEqual((await self.next_tracking_event())[0], encode_id(TEST_ADDRESS))
@@ -334,6 +334,38 @@ class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
 
         self.assertEqual(body['name'], 'Bob')
 
+# test all expected values are present
+        expected_data = {
+            "toshi_id": "0x0000000000000000000000000000000000000001",
+            "token_id": "0x0000000000000000000000000000000000000001",
+            "payment_address": "0x0000000000000000000000000000000000000002",
+            "username": "testuser",
+            "name": "Test User",
+            "about": "Hello World",
+            "location": "The World",
+            "avatar": "https://toshi-services/avatar.png",
+            "reputation_score": 4.1,
+            "average_rating": 4.9,
+            "review_count": 100,
+            "public": True,
+            "is_app": False,
+            "custom": {'avatar': 'https://toshi-services/avatar.png', 'name': 'Test User', 'about': 'Hello World', 'location': 'The World'}
+        }
+
+        async with self.pool.acquire() as con:
+            await con.execute(
+                "INSERT INTO users (toshi_id, payment_address, username, name, avatar, description, location, reputation_score, review_count, average_rating, is_public) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+                expected_data['toshi_id'], expected_data['payment_address'], expected_data['username'], expected_data['name'], expected_data['avatar'], expected_data['about'], expected_data['location'], expected_data['reputation_score'], expected_data['review_count'], expected_data['average_rating'], expected_data['public'])
+
+        resp = await self.fetch("/user/{}".format(expected_data['toshi_id']))
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+
+        self.assertEqual(len(expected_data), len(body))
+        for key, expected_value in expected_data.items():
+            self.assertIn(key, body)
+            self.assertEqual(body[key], expected_value)
+
     @gen_test
     @requires_database
     async def test_get_invalid_user(self):
@@ -461,10 +493,18 @@ class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
                 row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
             self.assertIsNotNone(row)
+            if key == 'about':
+                key = 'description'
+            if key == 'is_app':
+                key = 'is_bot'
             self.assertEqual(row[key], val)
 
         # make sure the final data looks the same as the body
         for key, val in body.items():
+            if key == 'about':
+                key = 'description'
+            if key == 'is_app':
+                key = 'is_bot'
             self.assertEqual(row[key], val)
 
     @gen_test
@@ -511,7 +551,7 @@ class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertTrue(row['is_app'])
+        self.assertTrue(row['is_bot'])
 
     @gen_test
     @requires_database
@@ -572,7 +612,7 @@ class UserHandlerTest(BotoTestMixin, AsyncHandlerTest):
         capitalised = 'BobSmith'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, toshi_id, is_app) VALUES ($1, $2, TRUE)", capitalised, TEST_ADDRESS)
+            await con.execute("INSERT INTO users (username, toshi_id, is_bot) VALUES ($1, $2, TRUE)", capitalised, TEST_ADDRESS)
 
         async with self.pool.acquire() as con:
             row = await con.fetchrow("SELECT * FROM users WHERE is_public = $1", True)
@@ -630,7 +670,7 @@ class AppHandlerTestWithForcedPublic(AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertTrue(row['is_app'])
+        self.assertTrue(row['is_bot'])
         self.assertTrue(row['is_public'])
 
         self.assertIsNotNone(row['username'])
@@ -645,7 +685,7 @@ class AppHandlerTestWithForcedPublic(AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertFalse(row['is_app'])
+        self.assertFalse(row['is_bot'])
         self.assertFalse(row['is_public'])
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT",
@@ -655,5 +695,5 @@ class AppHandlerTestWithForcedPublic(AsyncHandlerTest):
             row = await con.fetchrow("SELECT * FROM users WHERE toshi_id = $1", TEST_ADDRESS)
 
         self.assertIsNotNone(row)
-        self.assertTrue(row['is_app'])
+        self.assertTrue(row['is_bot'])
         self.assertTrue(row['is_public'])

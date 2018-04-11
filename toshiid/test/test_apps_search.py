@@ -47,10 +47,10 @@ class AppsHandlerTest(AsyncHandlerTest):
             ("NormalUser3", private_key_to_address(os.urandom(32)), False, False, True),
         ]
 
-        for username, addr, featured, is_app, is_public in setup_data:
+        for username, addr, featured, is_bot, is_public in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, is_app, featured, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
-                                  username, username, addr, is_app, featured, is_public)
+                await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, featured, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                                  username, username, addr, is_bot, featured, is_public)
 
         resp = await self.fetch("/apps", method="GET")
         self.assertResponseCodeEqual(resp, 200)
@@ -90,7 +90,7 @@ class AppsHandlerTest(AsyncHandlerTest):
     async def test_get_app(self):
         username = "ToshiBot"
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot) VALUES ($1, $2, $3, $4)",
                               username, username, TEST_ADDRESS, True)
         resp = await self.fetch("/apps/{}".format(TEST_ADDRESS), method="GET")
         self.assertResponseCodeEqual(resp, 200)
@@ -121,7 +121,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
         negative_query = 'TickleFight'
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app) VALUES ($1, $2, $3, $4)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot) VALUES ($1, $2, $3, $4)",
                               username, username, TEST_ADDRESS, True)
 
         # make sure results aren't returned if apps are not public
@@ -165,7 +165,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         for username, name, addr, featured in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_bot, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
                                   username, name, addr, featured, True, True)
 
         resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
@@ -226,7 +226,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
             insert_vals.append((private_key_to_address(key), username, name, None, 0))
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_app, featured, is_public) "
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_bot, featured, is_public) "
                 "VALUES ($1, $2, $3, $4, $5, TRUE, TRUE, TRUE)",
                 insert_vals)
         resp = await self.fetch("/search/apps?query=Toshi&limit={}".format(k + 1), method="GET")
@@ -265,13 +265,13 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
     async def test_app_underscore_username_query(self):
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               "wager_weight", "Wager Weight", "0x0000000000000000000000000000000000000001")
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               "bob_smith", "Robert", "0x0000000000000000000000000000000000000002")
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               "bob_jack", "Jackie", "0x0000000000000000000000000000000000000003")
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               "user1234", "user1234", "0x0000000000000000000000000000000000000004")
 
         for positive_query in ["wager", "wager_we", "wager_weight", "bob_smi"]:
@@ -302,7 +302,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         for username, name, addr, created, rating, rev_count in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, created, reputation_score, review_count, is_app, featured, is_public) "
+                await con.execute("INSERT INTO users (username, name, toshi_id, created, reputation_score, review_count, is_bot, featured, is_public) "
                                   "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
                                   username, name, addr, created, rating, rev_count, True, True, True)
 
@@ -354,7 +354,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
         username = "ToshiBot"
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, payment_address) VALUES ($1, $2, $3, $4, $5)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, payment_address) VALUES ($1, $2, $3, $4, $5)",
                               username, username, TEST_ADDRESS, True, TEST_PAYMENT_ADDRESS)
 
         resp = await self.fetch("/search/apps?payment_address={}".format(TEST_PAYMENT_ADDRESS), method="GET")
@@ -385,7 +385,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_app) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_bot) VALUES ($1, $2, $3, $4, $5, $6, $7)",
                 insert_vals)
 
         resp = await self.fetch("/search/user?apps=true&limit={}".format(i + 1), method="GET")
@@ -423,7 +423,7 @@ class SearchAppsHandlerTest(AsyncHandlerTest):
 
         async with self.pool.acquire() as con:
             await con.executemany(
-                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_app, featured) "
+                "INSERT INTO users (toshi_id, username, name, reputation_score, review_count, is_public, is_bot, featured) "
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                 insert_vals)
 
@@ -470,7 +470,7 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         toshi_id = private_key_to_address(private_key)
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, $4, $5)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, is_public) VALUES ($1, $2, $3, $4, $5)",
                               username, username, toshi_id, True, True)
 
         resp = await self.fetch("/search/apps?query={}".format(positive_query), method="GET")
@@ -502,7 +502,7 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         cons = []
         for username, name, private_key, featured in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_bot, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
                                   username, name, private_key_to_address(private_key), featured, True, True)
 
             con = await self.websocket_connect(private_key)
@@ -558,7 +558,7 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         cons = []
         for username, name, private_key, featured in setup_data:
             async with self.pool.acquire() as con:
-                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_bot, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
                                   username, name, private_key_to_address(private_key), featured, True, True)
 
         cons = []
@@ -596,9 +596,9 @@ class SearchAppsHandlerWithWebsocketTest(AsyncHandlerTest):
         toshi_id2 = private_key_to_address(private_key2)
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, $4, $5)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, is_public) VALUES ($1, $2, $3, $4, $5)",
                               username, username, toshi_id, True, True)
-            await con.execute("INSERT INTO users (username, name, toshi_id, is_app, is_public) VALUES ($1, $2, $3, $4, $5)",
+            await con.execute("INSERT INTO users (username, name, toshi_id, is_bot, is_public) VALUES ($1, $2, $3, $4, $5)",
                               username2, username2, toshi_id2, True, True)
 
         resp = await self.fetch("/search/apps", method="GET")

@@ -49,7 +49,7 @@ class HousekeepingTest(AsyncHandlerTest):
                     time = datetime.utcnow()
                 session_id = uuid.uuid4().hex
 
-                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_app, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
+                await con.execute("INSERT INTO users (username, name, toshi_id, featured, is_bot, is_public) VALUES ($1, $2, $3, $4, $5, $6)",
                                   username, name, toshi_id, featured, True, True)
                 await con.execute("INSERT INTO websocket_sessions VALUES ($1, $2, $3)",
                                   session_id, toshi_id, time)

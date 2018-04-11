@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR UNIQUE,
     name VARCHAR,
     avatar VARCHAR,
-    about VARCHAR,
+    description VARCHAR,
     location VARCHAR,
     reputation_score DECIMAL,
     review_count INTEGER DEFAULT 0,
@@ -14,16 +14,18 @@ CREATE TABLE IF NOT EXISTS users (
     is_public BOOLEAN DEFAULT FALSE,
     went_public TIMESTAMP WITHOUT TIME ZONE,
     tsv TSVECTOR,
-    -- APP specific details
-    is_app BOOLEAN DEFAULT FALSE,
+    -- BOT specific details
+    is_bot BOOLEAN DEFAULT FALSE,
+    is_groupchatbot BOOLEAN DEFAULT FALSE,
     featured BOOLEAN DEFAULT FALSE,
     -- whether or not the app has been blocked from
-    -- showing up on the app store page
+    -- showing up on the frontpage
     blocked BOOLEAN DEFAULT FALSE,
     -- migration flag, whether or not the migrated user has logged in at all
     active BOOLEAN DEFAULT TRUE
 );
 
+-- DEPRECIATED: now served by directory service
 CREATE TABLE IF NOT EXISTS dapps (
     dapp_id BIGINT PRIMARY KEY,
     name VARCHAR,
@@ -35,7 +37,8 @@ CREATE TABLE IF NOT EXISTS dapps (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_username ON users (lower(username));
-CREATE INDEX IF NOT EXISTS idx_users_apps ON users (is_app);
+CREATE INDEX IF NOT EXISTS idx_users_bots ON users (is_bot);
+CREATE INDEX IF NOT EXISTS idx_users_groupchatbots ON users (is_groupchatbot);
 
 CREATE INDEX IF NOT EXISTS idx_users_tsv ON users USING gin(tsv);
 
@@ -89,7 +92,7 @@ CREATE TABLE IF NOT EXISTS category_names (
     PRIMARY KEY(category_id, language)
 );
 
-CREATE TABLE IF NOT EXISTS app_categories (
+CREATE TABLE IF NOT EXISTS bot_categories (
     category_id SERIAL REFERENCES categories ON DELETE CASCADE,
     toshi_id VARCHAR REFERENCES users ON DELETE CASCADE,
 
@@ -105,4 +108,4 @@ CREATE TABLE IF NOT EXISTS websocket_sessions (
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_toshi_id ON websocket_sessions (toshi_id);
 CREATE INDEX IF NOT EXISTS idx_websocket_sessions_last_seen ON websocket_sessions (last_seen DESC);
 
-UPDATE database_version SET version_number = 26;
+UPDATE database_version SET version_number = 27;

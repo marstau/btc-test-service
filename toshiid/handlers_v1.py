@@ -25,6 +25,8 @@ from toshi.utils import validate_address, validate_decimal_string, validate_int_
 from PIL import Image, ExifTags
 from PIL.JpegImagePlugin import get_sampling
 
+from toshiid.handlers_v2 import user_row_for_json as user_row_for_json_v2
+
 assert ExifTags.TAGS[0x0112] == "Orientation"
 EXIF_ORIENTATION = 0x0112
 
@@ -66,9 +68,9 @@ def user_row_for_json(request, row):
         'payment_address': row['payment_address'],
         'avatar': row['avatar'] or "/identicon/{}.png".format(row['toshi_id']),
         'name': row['name'],
-        'about': row['about'],
+        'about': row['description'],
         'location': row['location'],
-        'is_app': row['is_app'],
+        'is_app': row['is_bot'],
         'public': row['is_public'],
         'reputation_score': float(row['reputation_score']) if row['reputation_score'] is not None else None,
         'average_rating': float(row['average_rating']) if row['average_rating'] is not None else 0,
@@ -78,7 +80,7 @@ def user_row_for_json(request, row):
         rval['avatar'] = "{}://{}{}".format(
             request.protocol, request.host,
             rval['avatar'])
-    if row['is_app']:
+    if row['is_bot']:
         rval['featured'] = row['featured'] or False
         if 'category_names' in row and 'category_ids' in row:
             rval['categories'] = [{'id': cat[0], 'tag': cat[1], 'name': cat[2]}
@@ -181,6 +183,14 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
         return 'superusers' in config and \
             toshi_id in config['superusers']
 
+    def write_user_data(self, user):
+        if self.api_version == 1:
+            self.write(user_row_for_json(self.request, user))
+        elif self.api_version == 2:
+            self.write(user_row_for_json_v2(user))
+        else:
+            raise Exception("Unknown api version")
+
     async def update_user(self, toshi_id):
 
         try:
@@ -188,29 +198,33 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
         except:
             raise JSONHTTPError(400, body={'errors': [{'id': 'bad_data', 'message': 'Error decoding data. Expected JSON content'}]})
 
+        if self.api_version == 1:
+            is_bot_key = 'is_app'
+            description_key = 'about'
+        elif self.api_version == 2:
+            is_bot_key = 'bot'
+            description_key = 'description'
+        else:
+            raise Exception("Unknown api version")
+
+        if self.api_version == 1 and 'custom' in payload:
+            for key in ['name', 'about', 'location']:
+                if key in payload['custom']:
+                    payload[key] = payload['custom'][key]
+
+        if not any(x in payload for x in ['username', description_key, 'name', 'avatar', 'payment_address', is_bot_key, 'location', 'public', 'categories']):
+            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+
         async with self.db:
 
             # make sure a user with the given toshi_id exists
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
-            categories = await self.db.fetch("SELECT category_id FROM app_categories WHERE toshi_id = $1 ORDER BY category_id", toshi_id)
-            categories = [row['category_id'] for row in categories]
+
             if user is None:
                 raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-            # backwards compat
-            if 'custom' in payload:
-                custom = payload.pop('custom')
-                if 'name' in custom:
-                    payload['name'] = custom['name']
-                if 'avatar' in custom:
-                    payload['avatar'] = custom['avatar']
-                if 'about' in custom:
-                    payload['about'] = custom['about']
-                if 'location' in custom:
-                    payload['location'] = custom['location']
-
-            if not any(x in payload for x in ['username', 'about', 'name', 'avatar', 'payment_address', 'is_app', 'location', 'public', 'categories']):
-                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+            categories = await self.db.fetch("SELECT category_id FROM bot_categories WHERE toshi_id = $1 ORDER BY category_id", toshi_id)
+            categories = [row['category_id'] for row in categories]
 
             if 'username' in payload and user['username'] != payload['username']:
                 username = payload['username']
@@ -228,17 +242,17 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
 
             if 'payment_address' in payload and payload['payment_address'] != user['payment_address']:
                 payment_address = payload['payment_address']
-                if not validate_address(payment_address):
+                if payment_address is not None and not validate_address(payment_address):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
                 await self.db.execute("UPDATE users SET payment_address = $1 WHERE toshi_id = $2", payment_address, toshi_id)
 
-            if 'is_app' in payload and payload['is_app'] != user['is_app']:
-                is_app = parse_boolean(payload['is_app'])
-                if not isinstance(is_app, bool):
+            if is_bot_key in payload and payload[is_bot_key] != user['is_bot']:
+                is_bot = parse_boolean(payload[is_bot_key])
+                if not isinstance(is_bot, bool):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
                 if config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
-                    payload['public'] = is_app
-                await self.db.execute("UPDATE users SET is_app = $1 WHERE toshi_id = $2", is_app, toshi_id)
+                    payload['public'] = is_bot
+                await self.db.execute("UPDATE users SET is_bot = $1 WHERE toshi_id = $2", is_bot, toshi_id)
 
             if 'categories' in payload and payload['categories'] != categories:
                 updated_categories = await self.db.fetch(
@@ -260,10 +274,10 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
                 removed = set(categories).difference(set(updated_categories))
                 added = set(updated_categories).difference(set(categories))
                 for category_id in removed:
-                    await self.db.execute("DELETE FROM app_categories WHERE category_id = $1 AND toshi_id = $2", category_id, toshi_id)
+                    await self.db.execute("DELETE FROM bot_categories WHERE category_id = $1 AND toshi_id = $2", category_id, toshi_id)
                 for category_id in added:
                     try:
-                        await self.db.execute("INSERT INTO app_categories VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                        await self.db.execute("INSERT INTO bot_categories VALUES ($1, $2) ON CONFLICT DO NOTHING",
                                               category_id, toshi_id)
                     except asyncpg.exceptions.ForeignKeyViolationError:
                         raise JSONHTTPError(400, body={'errors': {'id': 'bad_arguments', 'message': "Invalid Category ID: {}".format(category_id)}})
@@ -287,11 +301,11 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
                     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid Avatar'}]})
                 await self.db.execute("UPDATE users SET avatar = $1 WHERE toshi_id = $2", avatar, toshi_id)
 
-            if 'about' in payload and payload['about'] != user['about']:
-                about = payload['about']
-                if not isinstance(about, str):
-                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid About'}]})
-                await self.db.execute("UPDATE users SET about = $1 WHERE toshi_id = $2", about, toshi_id)
+            if description_key in payload and payload[description_key] != user['description']:
+                description = payload[description_key]
+                if not isinstance(description, str):
+                    raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid {}'.format(description_key.capitalize())}]})
+                await self.db.execute("UPDATE users SET description = $1 WHERE toshi_id = $2", description, toshi_id)
 
             if 'location' in payload and payload['location'] != user['location']:
                 location = payload['location']
@@ -306,7 +320,7 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 
-        self.write(user_row_for_json(self.request, user))
+        self.write_user_data(user)
         self.track(toshi_id, "Edited profile")
 
     async def update_user_avatar(self, toshi_id):
@@ -340,11 +354,16 @@ class UserMixin(BotoMixin, RequestVerificationMixin, AnalyticsMixin):
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 
-        self.write(user_row_for_json(self.request, user))
+        self.write_user_data(user)
+
         self.track(toshi_id, "Updated avatar")
 
 
 class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
+
+    def __init__(self, *args, api_version=1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.api_version = api_version
 
     async def post(self):
 
@@ -356,6 +375,15 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             row = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
         if row is not None:
             raise JSONHTTPError(400, body={'errors': [{'id': 'already_registered', 'message': 'The provided toshi id address is already registered'}]})
+
+        if self.api_version == 1:
+            is_bot_key = 'is_app'
+            description_key = 'about'
+        elif self.api_version == 2:
+            is_bot_key = 'bot'
+            description_key = 'description'
+        else:
+            raise Exception("Unknown api version")
 
         if 'username' in payload:
 
@@ -385,17 +413,21 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
             if not validate_address(payment_address):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
         else:
-            # default to the toshi_id if payment address is not specified
-            payment_address = toshi_id
+            if self.api_version == 1:
+                # default to the toshi_id if payment address is not specified
+                payment_address = toshi_id
+            else:
+                # it's valid to have a null payment_address
+                payment_address = None
 
-        if 'is_app' in payload:
-            is_app = parse_boolean(payload['is_app'])
-            if is_app is None:
+        if is_bot_key in payload:
+            is_bot = parse_boolean(payload[is_bot_key])
+            if is_bot is None:
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-            if is_app is True and config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
-                payload['public'] = is_app
+            if is_bot is True and config['general'].getboolean('apps_public_by_default') and 'public' not in payload:
+                payload['public'] = is_bot
         else:
-            is_app = False
+            is_bot = False
 
         if 'public' in payload:
             is_public = parse_boolean(payload['public'])
@@ -418,12 +450,12 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         else:
             name = None
 
-        if 'about' in payload:
-            about = payload['about']
-            if not isinstance(about, str):
+        if description_key in payload:
+            description = payload[description_key]
+            if not isinstance(description, str):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
         else:
-            about = None
+            description = None
 
         if 'location' in payload:
             location = payload['location']
@@ -442,14 +474,14 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         async with self.db:
             await self.db.execute("INSERT INTO users "
-                                  "(username, toshi_id, payment_address, name, avatar, is_app, about, location, is_public) "
+                                  "(username, toshi_id, payment_address, name, avatar, is_bot, description, location, is_public) "
                                   "VALUES "
                                   "($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-                                  username, toshi_id, payment_address, name, avatar, is_app, about, location, is_public)
+                                  username, toshi_id, payment_address, name, avatar, is_bot, description, location, is_public)
             user = await self.db.fetchrow("SELECT * FROM users WHERE toshi_id = $1", toshi_id)
             await self.db.commit()
 
-        self.write(user_row_for_json(self.request, user))
+        self.write_user_data(user)
         self.people_set(toshi_id, {"distinct_id": analytics_encode_id(toshi_id)})
         self.track(toshi_id, "Created account")
 
@@ -476,20 +508,21 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
 class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
 
-    def __init__(self, *args, apps_only=None, **kwargs):
+    def __init__(self, *args, apps_only=None, api_version=1, **kwargs):
         super().__init__(*args, **kwargs)
         self.apps_only = apps_only
+        self.api_version = api_version
 
     async def get(self, username):
 
-        sql = ("SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
+        sql = ("SELECT users.*, array_agg(bot_categories.category_id) AS category_ids, "
                "array_agg(categories.tag) AS category_tags, "
                "array_agg(category_names.name) AS category_names "
-               "FROM users LEFT JOIN app_categories "
-               "ON users.toshi_id = app_categories.toshi_id "
-               "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
+               "FROM users LEFT JOIN bot_categories "
+               "ON users.toshi_id = bot_categories.toshi_id "
+               "LEFT JOIN category_names ON bot_categories.category_id = category_names.category_id "
                "AND category_names.language = $1 "
-               "LEFT JOIN categories ON app_categories.category_id = categories.category_id "
+               "LEFT JOIN categories ON bot_categories.category_id = categories.category_id "
                "WHERE ")
         args = ['en']
 
@@ -506,7 +539,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
             args.append(username)
 
         if self.apps_only:
-            sql += " AND users.is_app = $3 AND users.blocked = $4"
+            sql += " AND users.is_bot = $3 AND users.blocked = $4"
             args.extend([True, False])
 
         sql += " GROUP BY users.toshi_id"
@@ -517,7 +550,7 @@ class UserHandler(UserMixin, DatabaseMixin, BaseHandler):
         if row is None:
             raise JSONHTTPError(404, body={'errors': [{'id': 'not_found', 'message': 'Not Found'}]})
 
-        self.write(user_row_for_json(self.request, row))
+        self.write_user_data(row)
 
     async def put(self, username):
 
@@ -631,14 +664,14 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             check_connected = False
 
         if query is None:
-            sql = ("SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
+            sql = ("SELECT users.*, array_agg(bot_categories.category_id) AS category_ids, "
                    "array_agg(categories.tag) AS category_tags, "
                    "array_agg(category_names.name) AS category_names "
-                   "FROM users LEFT JOIN app_categories "
-                   "ON users.toshi_id = app_categories.toshi_id "
-                   "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
+                   "FROM users LEFT JOIN bot_categories "
+                   "ON users.toshi_id = bot_categories.toshi_id "
+                   "LEFT JOIN category_names ON bot_categories.category_id = category_names.category_id "
                    "AND category_names.language = $1 "
-                   "LEFT JOIN categories ON app_categories.category_id = categories.category_id ")
+                   "LEFT JOIN categories ON bot_categories.category_id = categories.category_id ")
             sql_args = ['en']
             if check_connected:
                 sql += "INNER JOIN websocket_sessions ON users.toshi_id = websocket_sessions.toshi_id "
@@ -646,14 +679,14 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                 sql += "WHERE active = true AND payment_address = ${} ".format(len(sql_args) + 1)
                 sql_args.append(payment_address)
                 if apps is not None:
-                    sql += "AND is_app = ${} AND blocked = false ".format(len(sql_args) + 1)
+                    sql += "AND is_bot = ${} AND blocked = false ".format(len(sql_args) + 1)
                     sql_args.append(apps)
                     if featured is not None:
                         sql += "AND featured = ${} ".format(len(sql_args) + 1)
                         sql_args.append(featured)
                 sql += "GROUP BY users.toshi_id "
                 if apps is not None and len(categories) > 0:
-                    sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
+                    sql += "HAVING array_agg(bot_categories.category_id) @> ${} ".format(len(sql_args) + 1)
                     sql_args.append(categories)
                 if recent:
                     sql += "ORDER BY payment_address, created DESC, name, username "
@@ -661,7 +694,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     sql += "ORDER BY payment_address, name, username "
             else:
                 if apps is not None:
-                    sql += "WHERE is_app = ${} AND blocked = false ".format(len(sql_args) + 1)
+                    sql += "WHERE is_bot = ${} AND blocked = false ".format(len(sql_args) + 1)
                     sql_args.append(apps)
                     if featured is not None:
                         sql += "AND featured = ${} ".format(len(sql_args) + 1)
@@ -673,11 +706,11 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     sql += "WHERE is_public = ${} ".format(len(sql_args) + 1)
                     sql_args.append(public)
                     if apps is None or apps is False:
-                        sql += "AND is_app = FALSE "
+                        sql += "AND is_bot = FALSE "
                 sql += "AND active = true "
                 sql += "GROUP BY users.toshi_id "
                 if apps is not None and len(categories) > 0:
-                    sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
+                    sql += "HAVING array_agg(bot_categories.category_id) @> ${} ".format(len(sql_args) + 1)
                     sql_args.append(categories)
                 sql += "ORDER BY "
                 if top:
@@ -708,7 +741,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                 where_q.append("payment_address = ${}".format(len(sql_args) + 1))
                 sql_args.append(payment_address)
             if apps is not None:
-                where_q.append("is_app = ${}".format(len(sql_args) + 1))
+                where_q.append("is_bot = ${}".format(len(sql_args) + 1))
                 sql_args.append(apps)
                 if featured is not None:
                     where_q.append("featured = ${}".format(len(sql_args) + 1))
@@ -717,7 +750,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                 sql_args.append(False)
                 if len(categories) > 0:
                     for category in categories:
-                        where_q.append("app_categories.category_id = ${}".format(len(sql_args) + 1))
+                        where_q.append("bot_categories.category_id = ${}".format(len(sql_args) + 1))
                         sql_args.append(category)
                 if public is not None:
                     where_q.append("is_public = ${}".format(len(sql_args) + 1))
@@ -725,21 +758,21 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
             elif public is not None:
                 if apps is None or apps is False:
                     # apps shouldn't show up in the public profiles list
-                    where_q.append("is_app = ${}".format(len(sql_args) + 1))
+                    where_q.append("is_bot = ${}".format(len(sql_args) + 1))
                     sql_args.append(False)
                 where_q.append("is_public = ${}".format(len(sql_args) + 1))
                 sql_args.append(public)
             where_q.append("active = true")
             where_q = " AND {}".format(" AND ".join(where_q)) if where_q else ""
             sql = ("SELECT * FROM "
-                   "(SELECT users.*, array_agg(app_categories.category_id) AS category_ids, "
+                   "(SELECT users.*, array_agg(bot_categories.category_id) AS category_ids, "
                    "array_agg(categories.tag) AS category_tags, "
                    "array_agg(category_names.name) AS category_names "
                    "FROM users {}"
-                   "LEFT JOIN app_categories ON users.toshi_id = app_categories.toshi_id "
-                   "LEFT JOIN category_names ON app_categories.category_id = category_names.category_id "
+                   "LEFT JOIN bot_categories ON users.toshi_id = bot_categories.toshi_id "
+                   "LEFT JOIN category_names ON bot_categories.category_id = category_names.category_id "
                    "AND category_names.language = $1 "
-                   "LEFT JOIN categories ON app_categories.category_id = categories.category_id "
+                   "LEFT JOIN categories ON bot_categories.category_id = categories.category_id "
                    ", TO_TSQUERY($4) AS q "
                    "WHERE (tsv @@ q){} "
                    "GROUP BY users.toshi_id ").format(
@@ -747,7 +780,7 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                        if check_connected else "",
                        where_q)
             if apps is not None and len(categories) > 0:
-                sql += "HAVING array_agg(app_categories.category_id) @> ${} ".format(len(sql_args) + 1)
+                sql += "HAVING array_agg(bot_categories.category_id) @> ${} ".format(len(sql_args) + 1)
                 sql_args.append(categories)
             sql += ") AS t1 "
             sql += "ORDER BY TS_RANK_CD(t1.tsv, TO_TSQUERY($4)) DESC, "

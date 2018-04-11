@@ -76,10 +76,10 @@ class AppCategoriesTest(AsyncHandlerTest):
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, toshi_id, name, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               username, TEST_ADDRESS, name)
             # set inital categories to make sure they're removed
-            await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
+            await con.executemany("INSERT INTO bot_categories VALUES ($1, $2)",
                                   [(3, TEST_ADDRESS),
                                    (4, TEST_ADDRESS)])
 
@@ -111,7 +111,7 @@ class AppCategoriesTest(AsyncHandlerTest):
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, toshi_id, name, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               username, TEST_ADDRESS, name)
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
@@ -137,7 +137,7 @@ class AppCategoriesTest(AsyncHandlerTest):
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, toshi_id, name, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               username, TEST_ADDRESS, name)
 
         resp = await self.fetch_signed("/user", signing_key=TEST_PRIVATE_KEY, method="PUT", body={
@@ -154,7 +154,7 @@ class AppCategoriesTest(AsyncHandlerTest):
         async with self.pool.acquire() as con:
             await con.execute("DELETE FROM categories WHERE category_id = 1 OR category_id = 2")
             namerows = await con.fetchval("SELECT COUNT(*) FROM category_names")
-            approws = await con.fetchval("SELECT COUNT(*) FROM app_categories")
+            approws = await con.fetchval("SELECT COUNT(*) FROM bot_categories")
 
         self.assertEqual(namerows, len(categories) - 2)
         self.assertEqual(approws, 0)
@@ -175,9 +175,9 @@ class AppCategoriesTest(AsyncHandlerTest):
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, toshi_id, name, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               username, TEST_ADDRESS, name)
-            await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
+            await con.executemany("INSERT INTO bot_categories VALUES ($1, $2)",
                                   [(1, TEST_ADDRESS),
                                    (2, TEST_ADDRESS)])
             # TODO: test different insert order
@@ -220,17 +220,17 @@ class AppCategoriesTest(AsyncHandlerTest):
         categories = await self.setup_categories()
 
         async with self.pool.acquire() as con:
-            await con.execute("INSERT INTO users (username, toshi_id, name, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               username, TEST_ADDRESS, name)
-            await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
+            await con.executemany("INSERT INTO bot_categories VALUES ($1, $2)",
                                   [(1, TEST_ADDRESS),
                                    (2, TEST_ADDRESS)])
-            await con.execute("INSERT INTO users (username, toshi_id, name, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               username + "1", TEST_PAYMENT_ADDRESS, name)
-            await con.executemany("INSERT INTO app_categories VALUES ($1, $2)",
+            await con.executemany("INSERT INTO bot_categories VALUES ($1, $2)",
                                   [(2, TEST_PAYMENT_ADDRESS),
                                    (3, TEST_PAYMENT_ADDRESS)])
-            await con.execute("INSERT INTO users (username, toshi_id, name, is_app, is_public) VALUES ($1, $2, $3, true, true)",
+            await con.execute("INSERT INTO users (username, toshi_id, name, is_bot, is_public) VALUES ($1, $2, $3, true, true)",
                               namegen.get_first_name(), TEST_ADDRESS_2, namegen.get_full_name())
             # TODO: test different insert order
 
