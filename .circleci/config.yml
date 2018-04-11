@@ -1,0 +1,76 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.6.4-stretch
+    steps:
+      - checkout
+      - run:
+          name: Install Postgresql
+          command: sudo apt-get install postgresql
+      - run:
+          name: Install Redis
+          command: sudo apt-get install redis-server
+      - run:
+          name: Install Test Requirements
+          command: |
+            sudo pip install -r requirements-testing.txt
+            ./configure_environment.sh
+            sudo pip install --upgrade -r requirements.txt
+      - run:
+          name: Run Tests
+          command: python -m tornado.testing discover -s toshiid/test
+  deploy_internal:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Deploy
+          command: git push -f git@heroku.com:token-id-service-development.git master
+  deploy_production:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Deploy Development
+          command: git push -f git@heroku.com:token-id-service.git production:master
+      - run:
+          name: Deploy Production
+          command: git push -f git@heroku.com:toshi-id-service.git production:master
+  docs:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: "Install aglio"
+          command: 'npm install -g aglio'
+      - run:
+          name: "Pull docs"
+          command: 'git clone --depth 1 git@github.com:toshiapp/docs.git $HOME/docs'
+      - run:
+          name: "Deploy docs"
+          command: '$HOME/docs/deploy-blueprint.sh $CIRCLE_PROJECT_REPONAME docs/api.apib $CIRCLE_SHA1'
+
+workflows:
+  version: 2
+  test_build_docs_and_deploy:
+    jobs:
+      - build
+      - docs:
+          requires:
+            - build
+          filters:
+            branches:
+              only: production
+      - deploy_internal:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
+      - deploy_production:
+          requires:
+            - build
+          filters:
+            branches:
+              only: production
