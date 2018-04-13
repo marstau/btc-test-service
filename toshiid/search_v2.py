@@ -1,6 +1,6 @@
 from toshi.database import DatabaseMixin
 from toshi.handlers import BaseHandler
-from toshiid.handlers_v1 import parse_boolean
+from toshiid.handlers_v1 import parse_boolean, PUNCTUATION
 from toshiid.handlers_v2 import user_row_for_json
 from toshi.utils import parse_int
 
@@ -56,15 +56,20 @@ class SearchHandler(DatabaseMixin, BaseHandler):
 
         if search_query:
 
+            search_query = ''.join([" " if c in PUNCTUATION else c for c in search_query])
+            # split words and add in partial matching flags
+            search_query = '|'.join(['{}:*'.format(word) for word in search_query.split(' ') if word])
             sql = ("SELECT {} FROM users, TO_TSQUERY($1) AS q WHERE (tsv @@ q){} "
                    "{}{}")
             values = [search_query]
+            order_by = "ORDER BY TS_RANK_CD(tsv, TO_TSQUERY($1)), reputation_score, username"
 
         else:
 
             sql = ("SELECT {} FROM users{} "
                    "{}{}")
             values = []
+            order_by = "ORDER BY reputation_score, username"
 
         where_params = []
 
@@ -100,7 +105,7 @@ class SearchHandler(DatabaseMixin, BaseHandler):
                 sql.format("COUNT(*)", where_params, "", ""), *values)
             values.extend([offset, limit])
             results = await self.db.fetch(
-                sql.format("*", where_params, "ORDER BY reputation_score, username", paging), *values)
+                sql.format("*", where_params, order_by, paging), *values)
 
         query = []
         for key, values in self.request.query_arguments.items():

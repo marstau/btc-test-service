@@ -124,6 +124,7 @@ class SearchV2HandlerTest(AsyncHandlerTest):
         await self.populate_database()
         await self.do_test_search('bot')
         await self.do_test_search('bot', 'search')
+        await self.do_test_search('bot', 'sear')
 
     @gen_test
     @requires_database
@@ -132,6 +133,7 @@ class SearchV2HandlerTest(AsyncHandlerTest):
         await self.populate_database()
         await self.do_test_search('user')
         await self.do_test_search('user', 'search')
+        await self.do_test_search('user', 'sear')
 
     @gen_test
     @requires_database
@@ -140,3 +142,4 @@ class SearchV2HandlerTest(AsyncHandlerTest):
         await self.populate_database()
         await self.do_test_search('groupbot')
         await self.do_test_search('groupbot', 'search')
+        await self.do_test_search('groupbot', 'sear')
