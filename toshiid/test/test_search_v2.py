@@ -186,3 +186,31 @@ class SearchV2HandlerTest(AsyncHandlerTest):
         inject = "0')) AS a (id) ON u.toshi_id = a.id; DELETE FROM users; SELECT u.* FROM users u JOIN ( VALUES ('0x0000000000000000000000000000000000000000"
         resp = await self.fetch("/v2/search?toshi_id={}".format(quote_arg(inject)))
         self.assertEqual(resp.code, 400)
+
+    @gen_test
+    @requires_database
+    async def test_payment_address_search(self):
+
+        username = "user231"
+        name = "Bobby"
+        TEST_PAYMENT_ADDRESS = "0x3333333333333333333333333333333333333333"
+        TEST_ADDRESS = "0x5555555555555555555555555555555555555555"
+
+        async with self.pool.acquire() as con:
+            await con.execute("INSERT INTO users (username, toshi_id, name, payment_address) VALUES ($1, $2, $3, $4)",
+                              username, TEST_ADDRESS, name, TEST_PAYMENT_ADDRESS)
+
+        # test simple lookup
+        resp = await self.fetch("/v2/search?payment_address={}".format(TEST_PAYMENT_ADDRESS), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 1)
+
+        # test no matches
+        resp = await self.fetch("/v2/search?payment_address={}".format(TEST_ADDRESS), method="GET")
+        self.assertEqual(resp.code, 200)
+        body = json_decode(resp.body)
+        self.assertEqual(len(body['results']), 0)
+
+        resp = await self.fetch("/v2/search?payment_address=", method="GET")
+        self.assertEqual(resp.code, 400)

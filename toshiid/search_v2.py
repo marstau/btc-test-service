@@ -23,7 +23,9 @@ class SearchHandler(DatabaseMixin, BaseHandler):
         if not self.request.query_arguments:
             return await self.frontpage()
         elif 'toshi_id' in self.request.query_arguments:
-            return await self.list_users(self.get_query_arguments('toshi_id'))
+            return await self.list_users(toshi_ids=self.get_query_arguments('toshi_id'))
+        elif 'payment_address' in self.request.query_arguments:
+            return await self.list_users(payment_addresses=self.get_query_arguments('payment_address'))
         return await self.search()
 
     async def frontpage(self):
@@ -49,21 +51,29 @@ class SearchHandler(DatabaseMixin, BaseHandler):
 
         self.write({'sections': sections})
 
-    async def list_users(self, toshi_ids):
+    async def list_users(self, *, toshi_ids=None, payment_addresses=None):
 
         sql = "SELECT u.* FROM users u JOIN (VALUES "
         values = []
-        for i, toshi_id in enumerate(toshi_ids):
-            if not validate_address(toshi_id):
+        if toshi_ids is not None:
+            column = 'toshi_id'
+            addresses = toshi_ids
+        elif payment_addresses is not None:
+            column = 'payment_address'
+            addresses = payment_addresses
+        else:
+            raise Exception("list_users called without toshi_ids or payment_addresses")
+        for i, address in enumerate(addresses):
+            if not validate_address(address):
                 raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
-            values.append("('{}', {}) ".format(toshi_id, i))
+            values.append("('{}', {}) ".format(address, i))
             # in case this request is made with a lot of ids
             # make sure we yield to other processes rather
             # than taking up all resources on this
             if i > 0 and i % 100 == 0:
                 await asyncio.sleep(0.001)
         sql += ", ".join(values)
-        sql += ") AS v (toshi_id, ordering) ON u.toshi_id = v.toshi_id "
+        sql += ") AS v ({column}, ordering) ON u.{column} = v.{column} ".format(column=column)
         sql += "ORDER BY v.ordering"
 
         async with self.db:
