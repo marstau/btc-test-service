@@ -1,8 +1,10 @@
+import asyncio
 from toshi.database import DatabaseMixin
 from toshi.handlers import BaseHandler
 from toshiid.handlers_v1 import parse_boolean, PUNCTUATION
 from toshiid.handlers_v2 import user_row_for_json
-from toshi.utils import parse_int
+from toshi.utils import parse_int, validate_address
+from toshi.errors import JSONHTTPError
 
 GROUPINGS = [
     ("Popular Groups", "type=groupbot",
@@ -20,6 +22,8 @@ class SearchHandler(DatabaseMixin, BaseHandler):
 
         if not self.request.query_arguments:
             return await self.frontpage()
+        elif 'toshi_id' in self.request.query_arguments:
+            return await self.list_users(self.get_query_arguments('toshi_id'))
         return await self.search()
 
     async def frontpage(self):
@@ -44,6 +48,34 @@ class SearchHandler(DatabaseMixin, BaseHandler):
                 ]})
 
         self.write({'sections': sections})
+
+    async def list_users(self, toshi_ids):
+
+        sql = "SELECT u.* FROM users u JOIN (VALUES "
+        values = []
+        for i, toshi_id in enumerate(toshi_ids):
+            if not validate_address(toshi_id):
+                raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Bad Arguments'}]})
+            values.append("('{}', {}) ".format(toshi_id, i))
+            # in case this request is made with a lot of ids
+            # make sure we yield to other processes rather
+            # than taking up all resources on this
+            if i > 0 and i % 100 == 0:
+                await asyncio.sleep(0.001)
+        sql += ", ".join(values)
+        sql += ") AS v (toshi_id, ordering) ON u.toshi_id = v.toshi_id "
+        sql += "ORDER BY v.ordering"
+
+        async with self.db:
+            rows = await self.db.fetch(sql)
+
+        self.write({
+            'limit': len(rows),
+            'total': len(rows),
+            'offset': 0,
+            'query': '',
+            'results': [user_row_for_json(row) for row in rows]
+        })
 
     async def search(self):
 
