@@ -32,7 +32,7 @@ class SearchHandler(DatabaseMixin, BaseHandler):
         for name, query, args in GROUPINGS:
 
             items = args.items()
-            sql = "SELECT * FROM users WHERE {} ORDER BY reputation_score DESC LIMIT {}"
+            sql = "SELECT * FROM users WHERE {} ORDER BY reputation_score DESC NULLS LAST, review_count DESC, name LIMIT {}"
             sql = sql.format(
                 " AND ".join("{}=${}".format(item[0], idx + 1) for idx, item in enumerate(items)),
                 RESULTS_PER_SECTION)
@@ -94,14 +94,14 @@ class SearchHandler(DatabaseMixin, BaseHandler):
             sql = ("SELECT {} FROM users, TO_TSQUERY($1) AS q WHERE (tsv @@ q){} "
                    "{}{}")
             values = [search_query]
-            order_by = "ORDER BY TS_RANK_CD(tsv, TO_TSQUERY($1)), reputation_score, username"
+            order_by = "ORDER BY TS_RANK_CD(tsv, TO_TSQUERY($1)), reputation_score DESC NULLS LAST, review_count DESC, username"
 
         else:
 
             sql = ("SELECT {} FROM users{} "
                    "{}{}")
             values = []
-            order_by = "ORDER BY reputation_score, username"
+            order_by = "ORDER BY reputation_score DESC NULLS LAST, review_count DESC, username"
 
         where_params = []
 
