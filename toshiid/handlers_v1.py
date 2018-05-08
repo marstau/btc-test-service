@@ -410,8 +410,8 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
 
         if 'payment_address' in payload:
             payment_address = payload['payment_address']
-            if not validate_address(payment_address):
-                raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
+            # if not validate_address(payment_address):
+            #     raise JSONHTTPError(400, body={'errors': [{'id': 'invalid_payment_address', 'message': 'Invalid Payment Address'}]})
         else:
             if self.api_version == 1:
                 # default to the toshi_id if payment address is not specified
@@ -625,8 +625,8 @@ class SearchUserHandler(AnalyticsMixin, DatabaseMixin, BaseHandler):
                     [c for c in categories if isinstance(c, int)],
                     [c for c in categories if isinstance(c, str)])
             categories = [c['category_id'] for c in categories]
-        if payment_address and not validate_address(payment_address):
-            raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
+        # if payment_address and not validate_address(payment_address):
+        #     raise JSONHTTPError(400, body={'errors': [{'id': 'bad_arguments', 'message': 'Invalid payment_address'}]})
 
         # forece_featured should always infer force_apps
         if self.force_apps or self.force_featured:
