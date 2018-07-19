@@ -467,10 +467,10 @@ class UserCreationHandler(UserMixin, DatabaseMixin, BaseHandler):
         identicon_address = payment_address or toshi_id
         identicon_data = await self.run_in_executor(create_identitcon, identicon_address)
         key = "public/identicon/{}.png".format(identicon_address)
-        async with self.boto:
-            await self.boto.put_object(key=key, body=identicon_data)
-            if avatar is None:
-                avatar = self.boto.url_for_object(key)
+        # async with self.boto:
+        #     await self.boto.put_object(key=key, body=identicon_data)
+        #     if avatar is None:
+        #         avatar = self.boto.url_for_object(key)
 
         async with self.db:
             await self.db.execute("INSERT INTO users "
